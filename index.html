@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vessel IRR Sensitivity Calculator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2E86AB 0%, #1a5276 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .gibson-branding-top {
+            font-size: 0.9em;
+            font-weight: 600;
+            opacity: 0.9;
+            margin-bottom: 15px;
+            letter-spacing: 1px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .creator-credit {
+            position: absolute;
+            bottom: 10px;
+            right: 30px;
+            font-size: 0.75em;
+            opacity: 0.7;
+            font-style: italic;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 0;
+        }
+
+        .inputs-panel {
+            background: #f8f9fa;
+            padding: 30px;
+            border-right: 2px solid #dee2e6;
+            overflow-y: auto;
+            max-height: calc(100vh - 250px);
+        }
+
+        .chart-panel {
+            padding: 30px;
+            background: white;
+            overflow-y: auto;
+            max-height: calc(100vh - 250px);
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .input-group h3 {
+            color: #2E86AB;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            border-bottom: 2px solid #2E86AB;
+            padding-bottom: 8px;
+        }
+
+        .input-row {
+            margin-bottom: 15px;
+        }
+
+        .input-row label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+            font-size: 0.9em;
+        }
+
+        .input-row input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 0.95em;
+            transition: border-color 0.3s;
+        }
+
+        .input-row input:focus {
+            outline: none;
+            border-color: #2E86AB;
+        }
+
+        .input-row small {
+            display: block;
+            color: #6c757d;
+            margin-top: 3px;
+            font-size: 0.85em;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .calculate-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #06a77d 0%, #05855f 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .calculate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(6, 167, 125, 0.4);
+        }
+
+        .download-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #2E86AB 0%, #1a5276 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(46, 134, 171, 0.4);
+        }
+
+        .results-summary {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .result-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .result-card h4 {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }
+
+        .result-card .value {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #2E86AB;
+        }
+
+        .result-card .value.negative {
+            color: #d62828;
+        }
+
+        .result-card .value.positive {
+            color: #06a77d;
+        }
+
+        .canvas-container {
+            position: relative;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .chart-title {
+            text-align: center;
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2E86AB;
+            margin-bottom: 15px;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            cursor: crosshair;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            pointer-events: none;
+            display: none;
+            z-index: 1000;
+        }
+
+        .gibson-watermark {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .gibson-watermark img {
+            height: 35px;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 1400px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            .inputs-panel {
+                max-height: none;
+                border-right: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="gibson-branding-top">GIBSON SHIPBROKERS</div>
+            <h1>⚓ Vessel IRR Sensitivity Calculator</h1>
+            <p>Interactive tool for analyzing levered equity returns on vessel investments</p>
+            <div class="creator-credit">Created by Sriniwas Ghate, S&P Department</div>
+        </div>
+
+        <div class="content">
+            <div class="inputs-panel">
+                <div class="input-group">
+                    <h3>📊 Chart Settings</h3>
+                    <div class="input-row">
+                        <label for="chartTitle">Chart Title</label>
+                        <input type="text" id="chartTitle" value="Kamsarmax - IRR Sensitivity Analysis" />
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <h3>🚢 Vessel Details</h3>
+                    <div class="input-row">
+                        <label for="vesselAge">Current Age (years)</label>
+                        <input type="number" id="vesselAge" value="12" min="0" max="30" />
+                    </div>
+                    <div class="input-row">
+                        <label for="scrapAge">Scrapping Age (years)</label>
+                        <input type="number" id="scrapAge" value="25" min="10" max="40" />
+                    </div>
+                    <div class="input-row">
+                        <label for="scrapValue">Scrap Value ($M)</label>
+                        <input type="number" id="scrapValue" value="4.5" step="0.5" min="0" />
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <h3>💰 Purchase & Financing</h3>
+                    <div class="input-row">
+                        <label for="basePurchase">Base Purchase Price ($M)</label>
+                        <input type="number" id="basePurchase" value="25" step="0.5" />
+                    </div>
+                    <div class="input-row">
+                        <label for="priceMin">Min Price ($M)</label>
+                        <input type="number" id="priceMin" value="23" step="0.5" />
+                    </div>
+                    <div class="input-row">
+                        <label for="priceMax">Max Price ($M)</label>
+                        <input type="number" id="priceMax" value="28" step="0.5" />
+                    </div>
+                    <div class="input-row">
+                        <label for="equityPct">Equity %</label>
+                        <input type="number" id="equityPct" value="30" min="0" max="100" />
+                    </div>
+                    <div class="input-row">
+                        <label for="interestRate">Interest Rate %</label>
+                        <input type="number" id="interestRate" value="8" step="0.1" min="0" />
+                    </div>
+                    <div class="input-row">
+                        <label for="loanTerm">Loan Term (years)</label>
+                        <input type="number" id="loanTerm" value="5" min="1" max="15" />
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <h3>⚙️ Operating Costs</h3>
+                    <div class="input-row">
+                        <label for="opex">OPEX ($/day)</label>
+                        <input type="number" id="opex" value="6000" step="100" />
+                    </div>
+                    <div class="input-row">
+                        <label for="opexDays">OPEX Days per Year</label>
+                        <input type="number" id="opexDays" value="365" min="1" max="365" />
+                        <small>Always 365 (vessel runs even during DD/SS)</small>
+                    </div>
+                    <div class="input-row">
+                        <label for="earningDays">TC Earning Days (Normal)</label>
+                        <input type="number" id="earningDays" value="360" min="1" max="365" />
+                        <small>Days earning revenue in normal years</small>
+                    </div>
+                    <div class="input-row">
+                        <label for="offHireDays">Off-Hire Days (DD/SS Years)</label>
+                        <input type="number" id="offHireDays" value="30" min="0" max="90" />
+                        <small>Days without revenue during DD/SS</small>
+                    </div>
+                    <div class="input-row">
+                        <label for="ddCost">Drydocking Cost ($M)</label>
+                        <input type="number" id="ddCost" value="0.65" step="0.05" />
+                    </div>
+                    <div class="input-row">
+                        <label for="ssCost">Special Survey Cost ($M)</label>
+                        <input type="number" id="ssCost" value="1.25" step="0.05" />
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <h3>💵 TC Rates</h3>
+                    <div class="input-row">
+                        <label for="tcMin">Min TC Rate ($/day)</label>
+                        <input type="number" id="tcMin" value="11000" step="1000" />
+                    </div>
+                    <div class="input-row">
+                        <label for="tcMax">Max TC Rate ($/day)</label>
+                        <input type="number" id="tcMax" value="20000" step="1000" />
+                    </div>
+                    <div class="input-row">
+                        <label for="tcInitialYears">Years at Variable TC</label>
+                        <input type="number" id="tcInitialYears" value="8" min="1" />
+                    </div>
+                    <div class="input-row">
+                        <label for="tcLaterRate">TC Rate After ($/day)</label>
+                        <input type="number" id="tcLaterRate" value="9000" step="1000" />
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="calculate-btn" onclick="calculateIRR()">
+                        🔥 Calculate IRR
+                    </button>
+                    <button class="download-btn" onclick="downloadPDF()">
+                        📥 Download PDF Report
+                    </button>
+                    <button class="download-btn" onclick="downloadPNG()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        📸 Download Chart as PNG
+                    </button>
+                </div>
+            </div>
+
+            <div class="chart-panel">
+                <div class="results-summary" id="results" style="display: none;">
+                    <div class="result-card">
+                        <h4>Base Case IRR</h4>
+                        <div class="value" id="baseIRR">-</div>
+                    </div>
+                    <div class="result-card">
+                        <h4>Max IRR</h4>
+                        <div class="value positive" id="maxIRR">-</div>
+                    </div>
+                    <div class="result-card">
+                        <h4>Min IRR</h4>
+                        <div class="value negative" id="minIRR">-</div>
+                    </div>
+                </div>
+                
+                <div class="canvas-container">
+                    <div class="chart-title" id="chartTitleDisplay"></div>
+                    <canvas id="heatmapCanvas"></canvas>
+                    <div class="gibson-watermark"><img src="data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQAuAGcAbAA1AFkAIAAcAAAAJAAEgAEEAAQAAIAAAAELAAABAAQAAAAAAIAAEAFXAAAEYAAwAABQNBCEJZWAMAAQAYAgAABAIBAAwBAQQAAABAAIAAAAAAAEAAIAAgAIAAAAAAAAAQAAADEAAEEAAQEAAIAAAABIAAIAwAEABAAA...
