@@ -419,4 +419,337 @@
                 <div class="canvas-container">
                     <div class="chart-title" id="chartTitleDisplay"></div>
                     <canvas id="heatmapCanvas"></canvas>
-                    <div class="gibson-watermark"><img src="data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQAuAGcAbAA1AFkAIAAcAAAAJAAEgAEEAAQAAIAAAAELAAABAAQAAAAAAIAAEAFXAAAEYAAwAABQNBCEJZWAMAAQAYAgAABAIBAAwBAQQAAABAAIAAAAAAAEAAIAAgAIAAAAAAAAAQAAADEAAEEAAQEAAIAAAABIAAIAwAEABAAA...
+                    <div id="tooltip"></div>
+                    <div class="gibson-watermark">
+                        <span style="font-weight:700;color:#1a5276;font-size:0.85em;letter-spacing:2px;text-transform:uppercase;">Gibson Shipbrokers</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ── DD / SS schedule ────────────────────────────────────────────────────
+        function getDDSSEvents(vesselAge, holdPeriod, ddCost, ssCost) {
+            const events = {};
+            for (let k = 1; k <= 80; k++) {
+                const eventAge = k * 2.5;
+                const t = eventAge - vesselAge;
+                if (t <= 0) continue;
+                if (t > holdPeriod) break;
+                const year = Math.ceil(t);
+                if (year < 1 || year > holdPeriod) continue;
+                const isSpecialSurvey = (eventAge % 5 === 0);
+                const cost = isSpecialSurvey ? ssCost : ddCost;
+                if (!events[year] || events[year] < cost) {
+                    events[year] = cost;
+                }
+            }
+            return events;
+        }
+
+        // ── Loan balance after y annual annuity payments ────────────────────────
+        function loanBalance(loanAmount, annualRate, loanTerm, y) {
+            if (y >= loanTerm || loanAmount <= 0) return 0;
+            if (annualRate > 0) {
+                const rn = Math.pow(1 + annualRate, loanTerm);
+                const ry = Math.pow(1 + annualRate, y);
+                return loanAmount * (rn - ry) / (rn - 1);
+            }
+            return loanAmount * (1 - y / loanTerm);
+        }
+
+        // ── Annual annuity payment ───────────────────────────────────────────────
+        function annuityPayment(loanAmount, annualRate, loanTerm) {
+            if (loanAmount <= 0) return 0;
+            if (annualRate > 0) {
+                const rn = Math.pow(1 + annualRate, loanTerm);
+                return loanAmount * annualRate * rn / (rn - 1);
+            }
+            return loanAmount / loanTerm;
+        }
+
+        // ── Cash flow builder ────────────────────────────────────────────────────
+        function buildCashFlows(params, purchasePrice, tcRate) {
+            const {
+                vesselAge, holdPeriod, scrapValue,
+                equityPct, interestRate, loanTerm,
+                opex, opexDays, earningDays, offHireDays,
+                tcInitialYears, tcLaterRate,
+                ddCost, ssCost
+            } = params;
+
+            const equity      = purchasePrice * equityPct;
+            const loan        = purchasePrice * (1 - equityPct);
+            const debtService = annuityPayment(loan, interestRate, loanTerm);
+            const events      = getDDSSEvents(vesselAge, holdPeriod, ddCost, ssCost);
+            const cfs         = [-equity];
+
+            for (let yr = 1; yr <= holdPeriod; yr++) {
+                const hasEvent   = !!events[yr];
+                const revDays    = hasEvent ? Math.max(0, earningDays - offHireDays) : earningDays;
+                const yearTCRate = yr <= tcInitialYears ? tcRate : tcLaterRate;
+
+                const revenue    = yearTCRate * revDays;
+                const opexTotal  = opex * opexDays;
+                const ddssExp    = hasEvent ? events[yr] : 0;
+                const debt       = yr <= loanTerm ? debtService : 0;
+
+                let cf = revenue - opexTotal - ddssExp - debt;
+
+                if (yr === holdPeriod) {
+                    const residualDebt = loanBalance(loan, interestRate, loanTerm, Math.min(yr, loanTerm));
+                    cf += scrapValue - residualDebt;
+                }
+
+                cfs.push(cf);
+            }
+
+            return cfs;
+        }
+
+        // ── IRR (Newton-Raphson with bisection fallback) ─────────────────────────
+        function computeIRR(cfs) {
+            const npv = (r) => cfs.reduce((s, c, t) => s + c / Math.pow(1 + r, t), 0);
+            const dnpv = (r) => cfs.reduce((s, c, t) => s - t * c / (Math.pow(1 + r, t) * (1 + r)), 0);
+
+            // Quick sanity check – need sign change
+            if (npv(-0.999) * npv(5) > 0) return NaN;
+
+            let r = 0.1;
+            for (let i = 0; i < 200; i++) {
+                const f  = npv(r);
+                const df = dnpv(r);
+                if (Math.abs(df) < 1e-15) break;
+                const rNew = r - f / df;
+                if (!isFinite(rNew)) break;
+                if (Math.abs(rNew - r) < 1e-10) { r = rNew; break; }
+                r = Math.max(-0.9999, Math.min(rNew, 10));
+            }
+            return isFinite(npv(r)) && Math.abs(npv(r)) < 1 ? r : NaN;
+        }
+
+        // ── Color scale: red → yellow → green ────────────────────────────────────
+        function irrColor(irr, lo, hi) {
+            if (!isFinite(irr)) return '#cccccc';
+            const t = Math.max(0, Math.min(1, (irr - lo) / (hi - lo)));
+            let r, g, b = 0;
+            if (t < 0.5) { r = 255; g = Math.round(510 * t); }
+            else          { r = Math.round(510 * (1 - t)); g = 255; }
+            return `rgb(${r},${g},${b})`;
+        }
+
+        // ── Draw heatmap on canvas ────────────────────────────────────────────────
+        function drawHeatmap(matrix, prices, tcRates) {
+            const canvas = document.getElementById('heatmapCanvas');
+            const ctx    = canvas.getContext('2d');
+            const np     = prices.length;
+            const nt     = tcRates.length;
+            const cw     = 80, ch = 52;
+            const ml     = 110, mt = 30, mr = 30, mb = 75;
+
+            canvas.width  = ml + np * cw + mr;
+            canvas.height = mt + nt * ch + mb;
+
+            let lo = Infinity, hi = -Infinity;
+            matrix.forEach(row => row.forEach(v => { if (isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }));
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Cells (highest TC rate at top → row 0 = tcRates[nt-1])
+            for (let i = 0; i < nt; i++) {
+                const ti = nt - 1 - i;
+                for (let j = 0; j < np; j++) {
+                    const x = ml + j * cw, y = mt + i * ch;
+                    const irr = matrix[ti][j];
+                    ctx.fillStyle = irrColor(irr, lo, hi);
+                    ctx.fillRect(x, y, cw, ch);
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x, y, cw, ch);
+                    const label = isFinite(irr) ? (irr * 100).toFixed(1) + '%' : 'N/A';
+                    const lum   = irrColor(irr, lo, hi) === '#cccccc' ? 0 : (lo + (hi - lo) * Math.max(0, Math.min(1, (irr - lo) / (hi - lo))));
+                    ctx.fillStyle = '#000';
+                    ctx.font = 'bold 11px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(label, x + cw / 2, y + ch / 2);
+                }
+            }
+
+            // X-axis labels
+            ctx.fillStyle = '#333';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'center';
+            for (let j = 0; j < np; j++) {
+                ctx.fillText('$' + (prices[j] / 1e6).toFixed(1) + 'M', ml + j * cw + cw / 2, mt + nt * ch + 18);
+            }
+            ctx.font = 'bold 13px Arial';
+            ctx.fillText('Purchase Price', ml + np * cw / 2, mt + nt * ch + 45);
+
+            // Y-axis labels
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'right';
+            for (let i = 0; i < nt; i++) {
+                const ti = nt - 1 - i;
+                ctx.fillText('$' + (tcRates[ti] / 1000).toFixed(0) + 'k', ml - 8, mt + i * ch + ch / 2 + 4);
+            }
+            ctx.save();
+            ctx.translate(16, mt + nt * ch / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.font = 'bold 13px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('TC Rate ($/day)', 0, 0);
+            ctx.restore();
+
+            // Colour legend bar
+            const barX = ml, barY = mt + nt * ch + 58, barW = np * cw, barH = 10;
+            const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+            grad.addColorStop(0,   'rgb(255,0,0)');
+            grad.addColorStop(0.5, 'rgb(255,255,0)');
+            grad.addColorStop(1,   'rgb(0,255,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(barX, barY, barW, barH);
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(barX, barY, barW, barH);
+            ctx.fillStyle = '#555';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText((lo * 100).toFixed(1) + '%', barX, barY + barH + 12);
+            ctx.textAlign = 'right';
+            ctx.fillText((hi * 100).toFixed(1) + '%', barX + barW, barY + barH + 12);
+
+            // Store metadata for tooltip
+            Object.assign(canvas.dataset, {});
+            canvas._meta = { matrix, prices, tcRates, ml, mt, cw, ch, np, nt, lo, hi };
+        }
+
+        // ── Tooltip ──────────────────────────────────────────────────────────────
+        (function () {
+            const tip = document.getElementById('tooltip');
+            document.getElementById('heatmapCanvas').addEventListener('mousemove', function (e) {
+                const m = this._meta;
+                if (!m) return;
+                const rect = this.getBoundingClientRect();
+                const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+                const j  = Math.floor((mx - m.ml) / m.cw);
+                const i  = Math.floor((my - m.mt) / m.ch);
+                if (j >= 0 && j < m.np && i >= 0 && i < m.nt) {
+                    const ti  = m.nt - 1 - i;
+                    const irr = m.matrix[ti][j];
+                    tip.innerHTML = `TC Rate: <b>$${(m.tcRates[ti] / 1000).toFixed(0)}k/day</b><br>
+                                     Price: <b>$${(m.prices[j] / 1e6).toFixed(1)}M</b><br>
+                                     IRR: <b>${isFinite(irr) ? (irr * 100).toFixed(2) + '%' : 'N/A'}</b>`;
+                    tip.style.display = 'block';
+                    tip.style.left    = (e.offsetX + 14) + 'px';
+                    tip.style.top     = (e.offsetY - 14) + 'px';
+                } else {
+                    tip.style.display = 'none';
+                }
+            });
+            document.getElementById('heatmapCanvas').addEventListener('mouseleave', function () {
+                tip.style.display = 'none';
+            });
+        })();
+
+        // ── Main calculate function ───────────────────────────────────────────────
+        function calculateIRR() {
+            const g  = id => parseFloat(document.getElementById(id).value);
+            const gi = id => parseInt(document.getElementById(id).value);
+
+            const params = {
+                vesselAge:      g('vesselAge'),
+                holdPeriod:     g('scrapAge') - g('vesselAge'),
+                scrapValue:     g('scrapValue')    * 1e6,
+                equityPct:      g('equityPct')     / 100,
+                interestRate:   g('interestRate')  / 100,
+                loanTerm:       gi('loanTerm'),
+                opex:           g('opex'),
+                opexDays:       g('opexDays'),
+                earningDays:    g('earningDays'),
+                offHireDays:    g('offHireDays'),
+                ddCost:         g('ddCost')  * 1e6,
+                ssCost:         g('ssCost')  * 1e6,
+                tcInitialYears: gi('tcInitialYears'),
+                tcLaterRate:    g('tcLaterRate'),
+            };
+
+            if (params.holdPeriod <= 0) { alert('Scrapping Age must be greater than Current Age.'); return; }
+
+            const priceMin = g('priceMin') * 1e6;
+            const priceMax = g('priceMax') * 1e6;
+            const tcMin    = g('tcMin');
+            const tcMax    = g('tcMax');
+            const N        = 11;
+
+            const prices  = Array.from({ length: N }, (_, i) => priceMin + i * (priceMax - priceMin) / (N - 1));
+            const tcRates = Array.from({ length: N }, (_, i) => tcMin  + i * (tcMax  - tcMin)  / (N - 1));
+
+            const matrix = tcRates.map(tc =>
+                prices.map(p => computeIRR(buildCashFlows(params, p, tc)))
+            );
+
+            // Summary stats
+            const flat = matrix.flat().filter(isFinite);
+            const lo   = Math.min(...flat), hi = Math.max(...flat);
+            const baseCF  = buildCashFlows(params, g('basePurchase') * 1e6, (tcMin + tcMax) / 2);
+            const baseIRR = computeIRR(baseCF);
+
+            document.getElementById('results').style.display = 'grid';
+            const fmt = v => isFinite(v) ? (v * 100).toFixed(1) + '%' : 'N/A';
+            document.getElementById('baseIRR').textContent = fmt(baseIRR);
+            document.getElementById('maxIRR').textContent  = fmt(hi);
+            document.getElementById('minIRR').textContent  = fmt(lo);
+
+            document.getElementById('chartTitleDisplay').textContent = document.getElementById('chartTitle').value;
+            drawHeatmap(matrix, prices, tcRates);
+        }
+
+        // ── PNG download ─────────────────────────────────────────────────────────
+        function downloadPNG() {
+            const canvas = document.getElementById('heatmapCanvas');
+            if (!canvas._meta) { alert('Please calculate IRR first.'); return; }
+            const a = document.createElement('a');
+            a.download = 'IRR_Sensitivity_Chart.png';
+            a.href = canvas.toDataURL('image/png');
+            a.click();
+        }
+
+        // ── PDF download ─────────────────────────────────────────────────────────
+        function downloadPDF() {
+            const canvas = document.getElementById('heatmapCanvas');
+            if (!canvas._meta) { alert('Please calculate IRR first.'); return; }
+
+            const { jsPDF } = window.jspdf;
+            const doc   = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            const title = document.getElementById('chartTitle').value;
+
+            doc.setFontSize(16);
+            doc.setTextColor(46, 134, 171);
+            doc.text(title, 148.5, 14, { align: 'center' });
+
+            doc.setFontSize(9);
+            doc.setTextColor(100);
+            doc.text('Gibson Shipbrokers – S&P Department', 148.5, 20, { align: 'center' });
+
+            const imgData  = canvas.toDataURL('image/png');
+            const maxW     = 270, maxH = 155;
+            const ratio    = canvas.height / canvas.width;
+            const imgW     = maxW;
+            const imgH     = Math.min(maxH, imgW * ratio);
+            doc.addImage(imgData, 'PNG', 14, 25, imgW, imgH);
+
+            const ySum = 25 + imgH + 8;
+            doc.setFontSize(11);
+            doc.setTextColor(46, 134, 171);
+            const b = document.getElementById('baseIRR').textContent;
+            const mx = document.getElementById('maxIRR').textContent;
+            const mn = document.getElementById('minIRR').textContent;
+            doc.text(`Base Case IRR: ${b}     Max IRR: ${mx}     Min IRR: ${mn}`, 148.5, ySum, { align: 'center' });
+
+            doc.save('IRR_Sensitivity_Report.pdf');
+        }
+    </script>
+</body>
+</html>
