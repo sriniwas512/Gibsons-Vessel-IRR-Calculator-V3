@@ -6,15 +6,19 @@
     <title>Vessel IRR Sensitivity Calculator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        /* ── Tokyo Night palette ─────────────────────────────────────────────
+           bg:       #1a1b26   surface: #1f2335   panel:  #16161e
+           overlay:  #24283b   border:  #292e42
+           text:     #c0caf5   muted:   #a9b1d6   dim:    #565f89
+           blue:     #7aa2f7   purple:  #bb9af7   cyan:   #7dcfff
+           green:    #9ece6a   red:     #f7768e   orange: #ff9e64
+           yellow:   #e0af68
+        ──────────────────────────────────────────────────────────────────── */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1b26 0%, #24283b 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -22,44 +26,40 @@
         .container {
             max-width: 1800px;
             margin: 0 auto;
-            background: white;
+            background: #1a1b26;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
             overflow: hidden;
+            border: 1px solid #292e42;
         }
 
         .header {
-            background: linear-gradient(135deg, #2E86AB 0%, #1a5276 100%);
-            color: white;
+            background: linear-gradient(135deg, #3d59a1 0%, #1a1b26 100%);
+            color: #c0caf5;
             padding: 40px 30px;
             text-align: center;
             position: relative;
+            border-bottom: 2px solid #292e42;
         }
 
         .gibson-branding-top {
             font-size: 0.9em;
             font-weight: 600;
-            opacity: 0.9;
+            color: #7aa2f7;
             margin-bottom: 15px;
-            letter-spacing: 1px;
+            letter-spacing: 2px;
         }
 
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; color: #c0caf5; }
 
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
+        .header p { font-size: 1.1em; color: #a9b1d6; }
 
         .creator-credit {
             position: absolute;
             bottom: 10px;
             right: 30px;
             font-size: 0.75em;
-            opacity: 0.7;
+            color: #565f89;
             font-style: italic;
         }
 
@@ -70,65 +70,65 @@
         }
 
         .inputs-panel {
-            background: #f8f9fa;
+            background: #16161e;
             padding: 30px;
-            border-right: 2px solid #dee2e6;
+            border-right: 2px solid #292e42;
             overflow-y: auto;
             max-height: calc(100vh - 250px);
         }
 
         .chart-panel {
             padding: 30px;
-            background: white;
+            background: #1f2335;
             overflow-y: auto;
             max-height: calc(100vh - 250px);
         }
 
         .input-group {
             margin-bottom: 25px;
-            background: white;
+            background: #24283b;
             padding: 20px;
             border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #292e42;
         }
 
         .input-group h3 {
-            color: #2E86AB;
+            color: #7aa2f7;
             margin-bottom: 15px;
             font-size: 1.1em;
-            border-bottom: 2px solid #2E86AB;
+            border-bottom: 2px solid #3d59a1;
             padding-bottom: 8px;
         }
 
-        .input-row {
-            margin-bottom: 15px;
-        }
+        .input-row { margin-bottom: 15px; }
 
         .input-row label {
             display: block;
             font-weight: 600;
             margin-bottom: 5px;
-            color: #333;
+            color: #a9b1d6;
             font-size: 0.9em;
         }
 
         .input-row input {
             width: 100%;
             padding: 10px;
-            border: 2px solid #dee2e6;
+            background: #1f2335;
+            border: 2px solid #292e42;
             border-radius: 6px;
             font-size: 0.95em;
+            color: #c0caf5;
             transition: border-color 0.3s;
         }
 
         .input-row input:focus {
             outline: none;
-            border-color: #2E86AB;
+            border-color: #7aa2f7;
         }
 
         .input-row small {
             display: block;
-            color: #6c757d;
+            color: #565f89;
             margin-top: 3px;
             font-size: 0.85em;
         }
@@ -143,8 +143,8 @@
         .calculate-btn {
             width: 100%;
             padding: 15px;
-            background: linear-gradient(135deg, #06a77d 0%, #05855f 100%);
-            color: white;
+            background: linear-gradient(135deg, #9ece6a 0%, #73b840 100%);
+            color: #1a1b26;
             border: none;
             border-radius: 8px;
             font-size: 1.1em;
@@ -155,14 +155,14 @@
 
         .calculate-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(6, 167, 125, 0.4);
+            box-shadow: 0 5px 15px rgba(158, 206, 106, 0.35);
         }
 
         .download-btn {
             width: 100%;
             padding: 15px;
-            background: linear-gradient(135deg, #2E86AB 0%, #1a5276 100%);
-            color: white;
+            background: linear-gradient(135deg, #7aa2f7 0%, #3d59a1 100%);
+            color: #1a1b26;
             border: none;
             border-radius: 8px;
             font-size: 1.1em;
@@ -173,29 +173,30 @@
 
         .download-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(46, 134, 171, 0.4);
+            box-shadow: 0 5px 15px rgba(122, 162, 247, 0.35);
         }
 
         .results-summary {
-            background: #f8f9fa;
+            background: #16161e;
             padding: 20px;
             border-radius: 10px;
             margin-bottom: 20px;
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 15px;
+            border: 1px solid #292e42;
         }
 
         .result-card {
-            background: white;
+            background: #24283b;
             padding: 15px;
             border-radius: 8px;
             text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #292e42;
         }
 
         .result-card h4 {
-            color: #6c757d;
+            color: #565f89;
             font-size: 0.9em;
             margin-bottom: 8px;
         }
@@ -203,23 +204,18 @@
         .result-card .value {
             font-size: 1.8em;
             font-weight: 700;
-            color: #2E86AB;
+            color: #7aa2f7;
         }
 
-        .result-card .value.negative {
-            color: #d62828;
-        }
-
-        .result-card .value.positive {
-            color: #06a77d;
-        }
+        .result-card .value.negative { color: #f7768e; }
+        .result-card .value.positive { color: #9ece6a; }
 
         .canvas-container {
             position: relative;
-            background: white;
+            background: #24283b;
             border-radius: 10px;
             padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #292e42;
             margin-bottom: 30px;
         }
 
@@ -227,7 +223,7 @@
             text-align: center;
             font-size: 1.3em;
             font-weight: bold;
-            color: #2E86AB;
+            color: #7aa2f7;
             margin-bottom: 15px;
         }
 
@@ -235,41 +231,41 @@
             display: block;
             margin: 0 auto;
             cursor: crosshair;
-            border: 1px solid #dee2e6;
+            border: 1px solid #292e42;
             border-radius: 5px;
         }
 
         #tooltip {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
+            position: fixed;
+            background: #24283b;
+            color: #c0caf5;
+            border: 1px solid #7aa2f7;
+            padding: 10px 14px;
+            border-radius: 6px;
             font-size: 0.9em;
             pointer-events: none;
             display: none;
             z-index: 1000;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            line-height: 1.6;
         }
 
         .gibson-watermark {
             text-align: center;
-            margin-top: 10px;
+            margin-top: 12px;
         }
 
-        .gibson-watermark img {
-            height: 35px;
-            opacity: 0.8;
+        .gibson-watermark span {
+            font-weight: 700;
+            color: #3d59a1;
+            font-size: 0.8em;
+            letter-spacing: 2px;
+            text-transform: uppercase;
         }
 
         @media (max-width: 1400px) {
-            .content {
-                grid-template-columns: 1fr;
-            }
-            .inputs-panel {
-                max-height: none;
-                border-right: none;
-                border-bottom: 2px solid #dee2e6;
-            }
+            .content { grid-template-columns: 1fr; }
+            .inputs-panel { max-height: none; border-right: none; border-bottom: 2px solid #292e42; }
         }
     </style>
 </head>
@@ -309,7 +305,7 @@
                 </div>
 
                 <div class="input-group">
-                    <h3>💰 Purchase & Financing</h3>
+                    <h3>💰 Purchase &amp; Financing</h3>
                     <div class="input-row">
                         <label for="basePurchase">Base Purchase Price ($M)</label>
                         <input type="number" id="basePurchase" value="25" step="0.5" />
@@ -394,7 +390,7 @@
                     <button class="download-btn" onclick="downloadPDF()">
                         📥 Download PDF Report
                     </button>
-                    <button class="download-btn" onclick="downloadPNG()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <button class="download-btn" onclick="downloadPNG()" style="background: linear-gradient(135deg, #bb9af7 0%, #9d7cd8 100%);">
                         📸 Download Chart as PNG
                     </button>
                 </div>
@@ -415,13 +411,13 @@
                         <div class="value negative" id="minIRR">-</div>
                     </div>
                 </div>
-                
+
                 <div class="canvas-container">
                     <div class="chart-title" id="chartTitleDisplay"></div>
                     <canvas id="heatmapCanvas"></canvas>
                     <div id="tooltip"></div>
                     <div class="gibson-watermark">
-                        <span style="font-weight:700;color:#1a5276;font-size:0.85em;letter-spacing:2px;text-transform:uppercase;">Gibson Shipbrokers</span>
+                        <span>Gibson Shipbrokers</span>
                     </div>
                 </div>
             </div>
@@ -429,327 +425,466 @@
     </div>
 
     <script>
-        // ── DD / SS schedule ────────────────────────────────────────────────────
-        function getDDSSEvents(vesselAge, holdPeriod, ddCost, ssCost) {
-            const events = {};
-            for (let k = 1; k <= 80; k++) {
-                const eventAge = k * 2.5;
-                const t = eventAge - vesselAge;
-                if (t <= 0) continue;
-                if (t > holdPeriod) break;
-                const year = Math.ceil(t);
-                if (year < 1 || year > holdPeriod) continue;
-                const isSpecialSurvey = (eventAge % 5 === 0);
-                const cost = isSpecialSurvey ? ssCost : ddCost;
-                if (!events[year] || events[year] < cost) {
-                    events[year] = cost;
-                }
-            }
-            return events;
+        // ── Constants ─────────────────────────────────────────────────────────
+        const IRR_MIN_VALID = -20;  // % — below this is treated as N/A
+        const IRR_MAX_VALID =  50;  // % — above this is treated as N/A
+
+        // Tokyo Night canvas colours
+        const TN = {
+            bg:       '#1f2335',
+            overlay:  '#24283b',
+            border:   '#292e42',
+            text:     '#c0caf5',
+            muted:    '#a9b1d6',
+            dim:      '#565f89',
+            na:       '#1a1b26',   // N/A cell fill
+            naText:   '#565f89',
+        };
+
+        let irrData        = null;
+        let priceLabels    = [];
+        let tcLabels       = [];
+        let currentInputs  = null;
+
+        // ── IRR validity guard ────────────────────────────────────────────────
+        function isValidIRR(irr) {
+            return isFinite(irr) && irr >= IRR_MIN_VALID && irr <= IRR_MAX_VALID;
         }
 
-        // ── Loan balance after y annual annuity payments ────────────────────────
-        function loanBalance(loanAmount, annualRate, loanTerm, y) {
-            if (y >= loanTerm || loanAmount <= 0) return 0;
-            if (annualRate > 0) {
-                const rn = Math.pow(1 + annualRate, loanTerm);
-                const ry = Math.pow(1 + annualRate, y);
-                return loanAmount * (rn - ry) / (rn - 1);
+        // ── NPV & IRR solver ──────────────────────────────────────────────────
+        function calculateNPV(rate, cashFlows) {
+            let npv = 0;
+            for (let t = 0; t < cashFlows.length; t++) {
+                npv += cashFlows[t] / Math.pow(1 + rate, t);
             }
-            return loanAmount * (1 - y / loanTerm);
+            return npv;
         }
 
-        // ── Annual annuity payment ───────────────────────────────────────────────
-        function annuityPayment(loanAmount, annualRate, loanTerm) {
-            if (loanAmount <= 0) return 0;
-            if (annualRate > 0) {
-                const rn = Math.pow(1 + annualRate, loanTerm);
-                return loanAmount * annualRate * rn / (rn - 1);
-            }
-            return loanAmount / loanTerm;
-        }
+        function calculateIRRValue(cashFlows, guess = 0.1) {
+            let rate = guess;
+            const tolerance = 1e-6;
+            const maxIterations = 1000;
 
-        // ── Cash flow builder ────────────────────────────────────────────────────
-        function buildCashFlows(params, purchasePrice, tcRate) {
-            const {
-                vesselAge, holdPeriod, scrapValue,
-                equityPct, interestRate, loanTerm,
-                opex, opexDays, earningDays, offHireDays,
-                tcInitialYears, tcLaterRate,
-                ddCost, ssCost
-            } = params;
+            for (let i = 0; i < maxIterations; i++) {
+                const npv = calculateNPV(rate, cashFlows);
 
-            const equity      = purchasePrice * equityPct;
-            const loan        = purchasePrice * (1 - equityPct);
-            const debtService = annuityPayment(loan, interestRate, loanTerm);
-            const events      = getDDSSEvents(vesselAge, holdPeriod, ddCost, ssCost);
-            const cfs         = [-equity];
-
-            for (let yr = 1; yr <= holdPeriod; yr++) {
-                const hasEvent   = !!events[yr];
-                const revDays    = hasEvent ? Math.max(0, earningDays - offHireDays) : earningDays;
-                const yearTCRate = yr <= tcInitialYears ? tcRate : tcLaterRate;
-
-                const revenue    = yearTCRate * revDays;
-                const opexTotal  = opex * opexDays;
-                const ddssExp    = hasEvent ? events[yr] : 0;
-                const debt       = yr <= loanTerm ? debtService : 0;
-
-                let cf = revenue - opexTotal - ddssExp - debt;
-
-                if (yr === holdPeriod) {
-                    const residualDebt = loanBalance(loan, interestRate, loanTerm, Math.min(yr, loanTerm));
-                    cf += scrapValue - residualDebt;
+                let npvDerivative = 0;
+                for (let t = 1; t < cashFlows.length; t++) {
+                    npvDerivative -= t * cashFlows[t] / Math.pow(1 + rate, t + 1);
                 }
 
-                cfs.push(cf);
+                if (Math.abs(npv) < tolerance) return rate * 100;
+                if (Math.abs(npvDerivative) < 1e-10) { rate = guess + 0.1; continue; }
+
+                rate = rate - npv / npvDerivative;
+                if (rate < -0.99) rate = -0.5;
+                else if (rate > 10) rate = 1.0;
+            }
+            return rate * 100;
+        }
+
+        function calculateLoanPayment(principal, annualRate, years) {
+            const rate = annualRate / 100;
+            return principal * (rate * Math.pow(1 + rate, years)) / (Math.pow(1 + rate, years) - 1);
+        }
+
+        // ── Cash flow model ───────────────────────────────────────────────────
+        function calculateScenarioIRR(inputs, purchasePrice, tcRate) {
+            const equityInvestment = purchasePrice * (inputs.equityPct / 100);
+            const debtAmount       = purchasePrice * (1 - inputs.equityPct / 100);
+            const annualDebtService = calculateLoanPayment(debtAmount, inputs.interestRate, inputs.loanTerm);
+            const holdingPeriod    = inputs.scrapAge - inputs.vesselAge;
+            const cashFlows        = [-equityInvestment];
+
+            for (let year = 1; year <= holdingPeriod; year++) {
+                const vesselAge      = inputs.vesselAge + year;
+                const currentTCRate  = year <= inputs.tcInitialYears ? tcRate : inputs.tcLaterRate;
+
+                let capex = 0, offHireDays = 0;
+                if (year !== holdingPeriod) {
+                    if (vesselAge === 15 || vesselAge === 20) {
+                        capex = inputs.ssCost * 1e6;
+                        offHireDays = inputs.offHireDays;
+                    } else if (year === 3 || year === 6 || year === 11) {
+                        capex = inputs.ddCost * 1e6;
+                        offHireDays = inputs.offHireDays;
+                    }
+                }
+
+                const earningDays = inputs.earningDays - offHireDays;
+                const revenue     = currentTCRate * earningDays;
+                const opex        = inputs.opex * inputs.opexDays;
+                const debtService = year <= inputs.loanTerm ? annualDebtService : 0;
+                const scrap       = year === holdingPeriod ? inputs.scrapValue * 1e6 : 0;
+                cashFlows.push(revenue - opex - capex - debtService + scrap);
             }
 
-            return cfs;
+            return calculateIRRValue(cashFlows);
         }
 
-        // ── IRR (Newton-Raphson with bisection fallback) ─────────────────────────
-        function computeIRR(cfs) {
-            const npv = (r) => cfs.reduce((s, c, t) => s + c / Math.pow(1 + r, t), 0);
-            const dnpv = (r) => cfs.reduce((s, c, t) => s - t * c / (Math.pow(1 + r, t) * (1 + r)), 0);
-
-            // Quick sanity check – need sign change
-            if (npv(-0.999) * npv(5) > 0) return NaN;
-
-            let r = 0.1;
-            for (let i = 0; i < 200; i++) {
-                const f  = npv(r);
-                const df = dnpv(r);
-                if (Math.abs(df) < 1e-15) break;
-                const rNew = r - f / df;
-                if (!isFinite(rNew)) break;
-                if (Math.abs(rNew - r) < 1e-10) { r = rNew; break; }
-                r = Math.max(-0.9999, Math.min(rNew, 10));
-            }
-            return isFinite(npv(r)) && Math.abs(npv(r)) < 1 ? r : NaN;
+        // ── Colour helpers ────────────────────────────────────────────────────
+        function interpolateColor(c1, c2, t) {
+            return `rgb(${Math.round(c1[0]+(c2[0]-c1[0])*t)},${Math.round(c1[1]+(c2[1]-c1[1])*t)},${Math.round(c1[2]+(c2[2]-c1[2])*t)})`;
         }
 
-        // ── Color scale: red → yellow → green ────────────────────────────────────
-        function irrColor(irr, lo, hi) {
-            if (!isFinite(irr)) return '#cccccc';
-            const t = Math.max(0, Math.min(1, (irr - lo) / (hi - lo)));
-            let r, g, b = 0;
-            if (t < 0.5) { r = 255; g = Math.round(510 * t); }
-            else          { r = Math.round(510 * (1 - t)); g = 255; }
-            return `rgb(${r},${g},${b})`;
+        function getColorForIRR(irr, minIRR, maxIRR) {
+            const n = (irr - minIRR) / (maxIRR - minIRR);
+            if (n < 0.3) return interpolateColor([214,40,40],   [247,127,0],    n / 0.3);
+            if (n < 0.5) return interpolateColor([247,127,0],   [252,191,73],   (n-0.3)/0.2);
+            if (n < 0.7) return interpolateColor([252,191,73],  [144,190,109],  (n-0.5)/0.2);
+            if (n < 0.85)return interpolateColor([144,190,109], [67,170,139],   (n-0.7)/0.15);
+                         return interpolateColor([67,170,139],  [6,167,125],    (n-0.85)/0.15);
         }
 
-        // ── Draw heatmap on canvas ────────────────────────────────────────────────
-        function drawHeatmap(matrix, prices, tcRates) {
-            const canvas = document.getElementById('heatmapCanvas');
+        // ── Draw heatmap ──────────────────────────────────────────────────────
+        function drawHeatmap(canvasId, irrMatrix, prices, tcRates) {
+            const canvas = document.getElementById(canvasId);
             const ctx    = canvas.getContext('2d');
-            const np     = prices.length;
-            const nt     = tcRates.length;
-            const cw     = 80, ch = 52;
-            const ml     = 110, mt = 30, mr = 30, mb = 75;
 
-            canvas.width  = ml + np * cw + mr;
-            canvas.height = mt + nt * ch + mb;
+            const canvasWidth  = 1000;
+            const canvasHeight = 700;
+            canvas.width  = canvasWidth;
+            canvas.height = canvasHeight;
 
-            let lo = Infinity, hi = -Infinity;
-            matrix.forEach(row => row.forEach(v => { if (isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }));
+            const mL = 100, mR = 150, mT = 60, mB = 100;
+            const plotW = canvasWidth  - mL - mR;
+            const plotH = canvasHeight - mT - mB;
+            const cw    = plotW / prices.length;
+            const ch    = plotH / tcRates.length;
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Compute min/max from valid IRR values only
+            let minIRR = Infinity, maxIRR = -Infinity;
+            for (const row of irrMatrix) {
+                for (const v of row) {
+                    if (isValidIRR(v)) { minIRR = Math.min(minIRR, v); maxIRR = Math.max(maxIRR, v); }
+                }
+            }
+            // If everything is N/A fall back to 0–1 range to avoid colour scale collapse
+            if (!isFinite(minIRR)) { minIRR = 0; maxIRR = 1; }
 
-            // Cells (highest TC rate at top → row 0 = tcRates[nt-1])
-            for (let i = 0; i < nt; i++) {
-                const ti = nt - 1 - i;
-                for (let j = 0; j < np; j++) {
-                    const x = ml + j * cw, y = mt + i * ch;
-                    const irr = matrix[ti][j];
-                    ctx.fillStyle = irrColor(irr, lo, hi);
+            // Background
+            ctx.fillStyle = TN.bg;
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            // Cells
+            for (let i = 0; i < tcRates.length; i++) {
+                for (let j = 0; j < prices.length; j++) {
+                    const x   = mL + j * cw;
+                    const y   = mT + (tcRates.length - 1 - i) * ch;
+                    const irr = irrMatrix[i][j];
+                    const valid = isValidIRR(irr);
+
+                    ctx.fillStyle = valid ? getColorForIRR(irr, minIRR, maxIRR) : TN.na;
                     ctx.fillRect(x, y, cw, ch);
-                    ctx.strokeStyle = '#fff';
+
+                    ctx.strokeStyle = TN.border;
                     ctx.lineWidth = 1;
                     ctx.strokeRect(x, y, cw, ch);
-                    const label = isFinite(irr) ? (irr * 100).toFixed(1) + '%' : 'N/A';
-                    const lum   = irrColor(irr, lo, hi) === '#cccccc' ? 0 : (lo + (hi - lo) * Math.max(0, Math.min(1, (irr - lo) / (hi - lo))));
-                    ctx.fillStyle = '#000';
+
                     ctx.font = 'bold 11px Arial';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(label, x + cw / 2, y + ch / 2);
+                    if (valid) {
+                        ctx.fillStyle = irr < 5 ? '#ffffff' : '#1a1b26';
+                        ctx.fillText(irr.toFixed(1) + '%', x + cw / 2, y + ch / 2);
+                    } else {
+                        ctx.fillStyle = TN.naText;
+                        ctx.fillText('N/A', x + cw / 2, y + ch / 2);
+                    }
                 }
             }
 
-            // X-axis labels
-            ctx.fillStyle = '#333';
+            // Axes
+            ctx.strokeStyle = TN.dim;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(mL, mT);
+            ctx.lineTo(mL, mT + plotH);
+            ctx.lineTo(mL + plotW, mT + plotH);
+            ctx.stroke();
+
+            // X-axis labels (rotated)
+            ctx.fillStyle = TN.muted;
             ctx.font = '11px Arial';
             ctx.textAlign = 'center';
-            for (let j = 0; j < np; j++) {
-                ctx.fillText('$' + (prices[j] / 1e6).toFixed(1) + 'M', ml + j * cw + cw / 2, mt + nt * ch + 18);
+            for (let j = 0; j < prices.length; j++) {
+                const x = mL + j * cw + cw / 2;
+                ctx.save();
+                ctx.translate(x, mT + plotH + 20);
+                ctx.rotate(-Math.PI / 4);
+                ctx.fillText(priceLabels[j], 0, 0);
+                ctx.restore();
             }
             ctx.font = 'bold 13px Arial';
-            ctx.fillText('Purchase Price', ml + np * cw / 2, mt + nt * ch + 45);
+            ctx.fillStyle = TN.text;
+            ctx.fillText('Purchase Price', mL + plotW / 2, canvasHeight - 15);
 
             // Y-axis labels
-            ctx.font = '11px Arial';
             ctx.textAlign = 'right';
-            for (let i = 0; i < nt; i++) {
-                const ti = nt - 1 - i;
-                ctx.fillText('$' + (tcRates[ti] / 1000).toFixed(0) + 'k', ml - 8, mt + i * ch + ch / 2 + 4);
+            ctx.textBaseline = 'middle';
+            ctx.font = '11px Arial';
+            ctx.fillStyle = TN.muted;
+            for (let i = 0; i < tcRates.length; i++) {
+                ctx.fillText(tcLabels[i], mL - 10, mT + (tcRates.length - 1 - i) * ch + ch / 2);
             }
             ctx.save();
-            ctx.translate(16, mt + nt * ch / 2);
+            ctx.translate(18, mT + plotH / 2);
             ctx.rotate(-Math.PI / 2);
             ctx.font = 'bold 13px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('TC Rate ($/day)', 0, 0);
+            ctx.fillStyle = TN.text;
+            ctx.fillText('Time Charter Rate ($/day)', 0, 0);
             ctx.restore();
 
-            // Colour legend bar
-            const barX = ml, barY = mt + nt * ch + 58, barW = np * cw, barH = 10;
-            const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-            grad.addColorStop(0,   'rgb(255,0,0)');
-            grad.addColorStop(0.5, 'rgb(255,255,0)');
-            grad.addColorStop(1,   'rgb(0,255,0)');
-            ctx.fillStyle = grad;
-            ctx.fillRect(barX, barY, barW, barH);
-            ctx.strokeStyle = '#aaa';
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(barX, barY, barW, barH);
-            ctx.fillStyle = '#555';
+            // Colour bar (valid range only)
+            drawColorBar(ctx, mL + plotW + 30, mT, 28, plotH, minIRR, maxIRR);
+
+            // N/A legend swatch
+            ctx.fillStyle = TN.na;
+            ctx.fillRect(mL + plotW + 30, mT + plotH + 10, 28, 14);
+            ctx.strokeStyle = TN.border;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(mL + plotW + 30, mT + plotH + 10, 28, 14);
+            ctx.fillStyle = TN.naText;
             ctx.font = '10px Arial';
             ctx.textAlign = 'left';
-            ctx.fillText((lo * 100).toFixed(1) + '%', barX, barY + barH + 12);
-            ctx.textAlign = 'right';
-            ctx.fillText((hi * 100).toFixed(1) + '%', barX + barW, barY + barH + 12);
-
-            // Store metadata for tooltip
-            Object.assign(canvas.dataset, {});
-            canvas._meta = { matrix, prices, tcRates, ml, mt, cw, ch, np, nt, lo, hi };
+            ctx.textBaseline = 'middle';
+            ctx.fillText('N/A  (<' + IRR_MIN_VALID + '% or >' + IRR_MAX_VALID + '%)', mL + plotW + 62, mT + plotH + 17);
         }
 
-        // ── Tooltip ──────────────────────────────────────────────────────────────
-        (function () {
-            const tip = document.getElementById('tooltip');
-            document.getElementById('heatmapCanvas').addEventListener('mousemove', function (e) {
-                const m = this._meta;
-                if (!m) return;
-                const rect = this.getBoundingClientRect();
-                const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-                const j  = Math.floor((mx - m.ml) / m.cw);
-                const i  = Math.floor((my - m.mt) / m.ch);
-                if (j >= 0 && j < m.np && i >= 0 && i < m.nt) {
-                    const ti  = m.nt - 1 - i;
-                    const irr = m.matrix[ti][j];
-                    tip.innerHTML = `TC Rate: <b>$${(m.tcRates[ti] / 1000).toFixed(0)}k/day</b><br>
-                                     Price: <b>$${(m.prices[j] / 1e6).toFixed(1)}M</b><br>
-                                     IRR: <b>${isFinite(irr) ? (irr * 100).toFixed(2) + '%' : 'N/A'}</b>`;
-                    tip.style.display = 'block';
-                    tip.style.left    = (e.offsetX + 14) + 'px';
-                    tip.style.top     = (e.offsetY - 14) + 'px';
-                } else {
-                    tip.style.display = 'none';
+        function drawColorBar(ctx, x, y, w, h, minVal, maxVal) {
+            for (let i = 0; i < h; i++) {
+                const val = minVal + (maxVal - minVal) * (1 - i / h);
+                ctx.fillStyle = getColorForIRR(val, minVal, maxVal);
+                ctx.fillRect(x, y + i, w, 1);
+            }
+            ctx.strokeStyle = TN.border;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, w, h);
+
+            ctx.fillStyle = TN.muted;
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(maxVal.toFixed(1) + '%', x + w + 5, y);
+            ctx.fillText(minVal.toFixed(1) + '%', x + w + 5, y + h);
+            ctx.fillText(((maxVal + minVal) / 2).toFixed(1) + '%', x + w + 5, y + h / 2);
+
+            ctx.save();
+            ctx.translate(x + w + 42, y + h / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = TN.text;
+            ctx.fillText('IRR (%)', 0, 0);
+            ctx.restore();
+        }
+
+        // ── Hover tooltip ─────────────────────────────────────────────────────
+        function setupHoverEffect() {
+            const canvas  = document.getElementById('heatmapCanvas');
+            const tooltip = document.getElementById('tooltip');
+
+            canvas.addEventListener('mousemove', function (e) {
+                const rect   = canvas.getBoundingClientRect();
+                const scaleX = canvas.width  / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const cx = (e.clientX - rect.left) * scaleX;
+                const cy = (e.clientY - rect.top)  * scaleY;
+
+                const mL = 100, mR = 150, mT = 60, mB = 100;
+                const plotW = canvas.width  - mL - mR;
+                const plotH = canvas.height - mT - mB;
+
+                if (cx >= mL && cx <= mL + plotW && cy >= mT && cy <= mT + plotH) {
+                    const col = Math.floor((cx - mL) / (plotW / priceLabels.length));
+                    const row = tcLabels.length - 1 - Math.floor((cy - mT) / (plotH / tcLabels.length));
+
+                    if (row >= 0 && row < irrData.length && col >= 0 && col < irrData[0].length) {
+                        const irr    = irrData[row][col];
+                        const irrStr = isValidIRR(irr) ? irr.toFixed(2) + '%' : 'N/A';
+                        tooltip.innerHTML =
+                            `<strong>Price:</strong> ${priceLabels[col]}<br>` +
+                            `<strong>TC Rate:</strong> ${tcLabels[row]}<br>` +
+                            `<strong>IRR:</strong> ${irrStr}`;
+                        tooltip.style.display = 'block';
+                        tooltip.style.left = (e.clientX + 14) + 'px';
+                        tooltip.style.top  = (e.clientY + 14) + 'px';
+                        return;
+                    }
                 }
+                tooltip.style.display = 'none';
             });
-            document.getElementById('heatmapCanvas').addEventListener('mouseleave', function () {
-                tip.style.display = 'none';
-            });
-        })();
 
-        // ── Main calculate function ───────────────────────────────────────────────
+            canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+        }
+
+        // ── Main calculate ────────────────────────────────────────────────────
         function calculateIRR() {
-            const g  = id => parseFloat(document.getElementById(id).value);
-            const gi = id => parseInt(document.getElementById(id).value);
-
-            const params = {
-                vesselAge:      g('vesselAge'),
-                holdPeriod:     g('scrapAge') - g('vesselAge'),
-                scrapValue:     g('scrapValue')    * 1e6,
-                equityPct:      g('equityPct')     / 100,
-                interestRate:   g('interestRate')  / 100,
-                loanTerm:       gi('loanTerm'),
-                opex:           g('opex'),
-                opexDays:       g('opexDays'),
-                earningDays:    g('earningDays'),
-                offHireDays:    g('offHireDays'),
-                ddCost:         g('ddCost')  * 1e6,
-                ssCost:         g('ssCost')  * 1e6,
-                tcInitialYears: gi('tcInitialYears'),
-                tcLaterRate:    g('tcLaterRate'),
+            const inputs = {
+                chartTitle:     document.getElementById('chartTitle').value,
+                vesselAge:      parseFloat(document.getElementById('vesselAge').value),
+                scrapAge:       parseFloat(document.getElementById('scrapAge').value),
+                scrapValue:     parseFloat(document.getElementById('scrapValue').value),
+                basePurchase:   parseFloat(document.getElementById('basePurchase').value),
+                priceMin:       parseFloat(document.getElementById('priceMin').value),
+                priceMax:       parseFloat(document.getElementById('priceMax').value),
+                equityPct:      parseFloat(document.getElementById('equityPct').value),
+                interestRate:   parseFloat(document.getElementById('interestRate').value),
+                loanTerm:       parseFloat(document.getElementById('loanTerm').value),
+                opex:           parseFloat(document.getElementById('opex').value),
+                opexDays:       parseFloat(document.getElementById('opexDays').value),
+                earningDays:    parseFloat(document.getElementById('earningDays').value),
+                offHireDays:    parseFloat(document.getElementById('offHireDays').value),
+                ddCost:         parseFloat(document.getElementById('ddCost').value),
+                ssCost:         parseFloat(document.getElementById('ssCost').value),
+                tcMin:          parseFloat(document.getElementById('tcMin').value),
+                tcMax:          parseFloat(document.getElementById('tcMax').value),
+                tcInitialYears: parseFloat(document.getElementById('tcInitialYears').value),
+                tcLaterRate:    parseFloat(document.getElementById('tcLaterRate').value)
             };
 
-            if (params.holdPeriod <= 0) { alert('Scrapping Age must be greater than Current Age.'); return; }
+            currentInputs = inputs;
 
-            const priceMin = g('priceMin') * 1e6;
-            const priceMax = g('priceMax') * 1e6;
-            const tcMin    = g('tcMin');
-            const tcMax    = g('tcMax');
-            const N        = 11;
+            const prices  = [];
+            for (let p = inputs.priceMin * 1e6; p <= inputs.priceMax * 1e6 + 1; p += 0.5e6) prices.push(p);
 
-            const prices  = Array.from({ length: N }, (_, i) => priceMin + i * (priceMax - priceMin) / (N - 1));
-            const tcRates = Array.from({ length: N }, (_, i) => tcMin  + i * (tcMax  - tcMin)  / (N - 1));
+            const tcRates = [];
+            for (let tc = inputs.tcMin; tc <= inputs.tcMax + 1; tc += 1000) tcRates.push(tc);
 
-            const matrix = tcRates.map(tc =>
-                prices.map(p => computeIRR(buildCashFlows(params, p, tc)))
+            const irrMatrix = [];
+            let maxIRR = -Infinity, minIRR = Infinity;
+
+            for (let i = 0; i < tcRates.length; i++) {
+                const row = [];
+                for (let j = 0; j < prices.length; j++) {
+                    const irr = calculateScenarioIRR(inputs, prices[j], tcRates[i]);
+                    row.push(irr);
+                    // Only track valid IRR for summary stats
+                    if (isValidIRR(irr)) { maxIRR = Math.max(maxIRR, irr); minIRR = Math.min(minIRR, irr); }
+                }
+                irrMatrix.push(row);
+            }
+
+            irrData     = irrMatrix;
+            priceLabels = prices.map(p => `$${(p / 1e6).toFixed(1)}M`);
+            tcLabels    = tcRates.map(tc => `$${(tc / 1000).toFixed(0)}k`);
+
+            // Base case: nearest price index + mid TC row
+            const basePriceIdx = Math.min(
+                Math.round((inputs.basePurchase - inputs.priceMin) / 0.5),
+                prices.length - 1
             );
-
-            // Summary stats
-            const flat = matrix.flat().filter(isFinite);
-            const lo   = Math.min(...flat), hi = Math.max(...flat);
-            const baseCF  = buildCashFlows(params, g('basePurchase') * 1e6, (tcMin + tcMax) / 2);
-            const baseIRR = computeIRR(baseCF);
+            const baseTCIdx = Math.floor(tcRates.length / 2);
+            const baseIRR   = irrMatrix[baseTCIdx][basePriceIdx];
+            const baseValid = isValidIRR(baseIRR);
 
             document.getElementById('results').style.display = 'grid';
-            const fmt = v => isFinite(v) ? (v * 100).toFixed(1) + '%' : 'N/A';
-            document.getElementById('baseIRR').textContent = fmt(baseIRR);
-            document.getElementById('maxIRR').textContent  = fmt(hi);
-            document.getElementById('minIRR').textContent  = fmt(lo);
+            document.getElementById('baseIRR').textContent  = baseValid ? baseIRR.toFixed(2) + '%' : 'N/A';
+            document.getElementById('baseIRR').className    = 'value ' + (!baseValid ? '' : baseIRR >= 0 ? 'positive' : 'negative');
+            document.getElementById('maxIRR').textContent   = isFinite(maxIRR) ? maxIRR.toFixed(2) + '%' : 'N/A';
+            document.getElementById('minIRR').textContent   = isFinite(minIRR) ? minIRR.toFixed(2) + '%' : 'N/A';
 
-            document.getElementById('chartTitleDisplay').textContent = document.getElementById('chartTitle').value;
-            drawHeatmap(matrix, prices, tcRates);
+            document.getElementById('chartTitleDisplay').textContent = inputs.chartTitle;
+
+            drawHeatmap('heatmapCanvas', irrMatrix, prices, tcRates);
+            setupHoverEffect();
         }
 
-        // ── PNG download ─────────────────────────────────────────────────────────
+        // ── PNG download ──────────────────────────────────────────────────────
         function downloadPNG() {
-            const canvas = document.getElementById('heatmapCanvas');
-            if (!canvas._meta) { alert('Please calculate IRR first.'); return; }
-            const a = document.createElement('a');
-            a.download = 'IRR_Sensitivity_Chart.png';
-            a.href = canvas.toDataURL('image/png');
-            a.click();
+            if (!irrData || !currentInputs) { alert('Please calculate IRR first!'); return; }
+            try {
+                const canvas = document.getElementById('heatmapCanvas');
+                const link   = document.createElement('a');
+                link.download = `vessel_irr_sensitivity_${new Date().toISOString().split('T')[0]}.png`;
+                link.href     = canvas.toDataURL('image/png');
+                link.click();
+            } catch (e) { alert('Error downloading image: ' + e.message); }
         }
 
-        // ── PDF download ─────────────────────────────────────────────────────────
+        // ── PDF download ──────────────────────────────────────────────────────
         function downloadPDF() {
-            const canvas = document.getElementById('heatmapCanvas');
-            if (!canvas._meta) { alert('Please calculate IRR first.'); return; }
+            if (!irrData || !currentInputs) { alert('Please calculate IRR first!'); return; }
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('landscape', 'mm', 'a4');
+                const inp = currentInputs;
 
-            const { jsPDF } = window.jspdf;
-            const doc   = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-            const title = document.getElementById('chartTitle').value;
+                // PAGE 1 — CHART
+                pdf.setFontSize(18);
+                pdf.setTextColor(61, 89, 161);
+                pdf.text('Gibson Shipbrokers', 148, 15, { align: 'center' });
 
-            doc.setFontSize(16);
-            doc.setTextColor(46, 134, 171);
-            doc.text(title, 148.5, 14, { align: 'center' });
+                pdf.setFontSize(14);
+                pdf.setTextColor(50, 50, 50);
+                pdf.text(inp.chartTitle, 148, 25, { align: 'center' });
 
-            doc.setFontSize(9);
-            doc.setTextColor(100);
-            doc.text('Gibson Shipbrokers – S&P Department', 148.5, 20, { align: 'center' });
+                const canvas  = document.getElementById('heatmapCanvas');
+                const imgData = canvas.toDataURL('image/png');
+                pdf.addImage(imgData, 'PNG', 15, 35, 267, 152);
 
-            const imgData  = canvas.toDataURL('image/png');
-            const maxW     = 270, maxH = 155;
-            const ratio    = canvas.height / canvas.width;
-            const imgW     = maxW;
-            const imgH     = Math.min(maxH, imgW * ratio);
-            doc.addImage(imgData, 'PNG', 14, 25, imgW, imgH);
+                pdf.setFontSize(8);
+                pdf.setTextColor(150);
+                pdf.text('IRR values outside the range ' + IRR_MIN_VALID + '% – ' + IRR_MAX_VALID + '% are displayed as N/A.', 148, 192, { align: 'center' });
 
-            const ySum = 25 + imgH + 8;
-            doc.setFontSize(11);
-            doc.setTextColor(46, 134, 171);
-            const b = document.getElementById('baseIRR').textContent;
-            const mx = document.getElementById('maxIRR').textContent;
-            const mn = document.getElementById('minIRR').textContent;
-            doc.text(`Base Case IRR: ${b}     Max IRR: ${mx}     Min IRR: ${mn}`, 148.5, ySum, { align: 'center' });
+                // PAGE 2 — ASSUMPTIONS
+                pdf.addPage();
 
-            doc.save('IRR_Sensitivity_Report.pdf');
+                pdf.setFontSize(18);
+                pdf.setTextColor(61, 89, 161);
+                pdf.text('Gibson Shipbrokers', 148, 15, { align: 'center' });
+
+                pdf.setFontSize(16);
+                pdf.setTextColor(50, 50, 50);
+                pdf.text('Investment Assumptions', 148, 25, { align: 'center' });
+
+                const c1 = 20, c2 = 155;
+                let y1 = 50, y2 = 50;
+                const lh = 7;
+
+                pdf.setFontSize(12); pdf.setFont(undefined, 'bold'); pdf.setTextColor(61,89,161);
+                pdf.text('VESSEL DETAILS', c1, y1); y1 += 10;
+                pdf.setFontSize(10); pdf.setFont(undefined, 'normal'); pdf.setTextColor(50,50,50);
+                pdf.text('Current Age: ' + inp.vesselAge + ' years', c1, y1); y1 += lh;
+                pdf.text('Scrapping Age: ' + inp.scrapAge + ' years', c1, y1); y1 += lh;
+                pdf.text('Holding Period: ' + (inp.scrapAge - inp.vesselAge) + ' years', c1, y1); y1 += lh;
+                pdf.text('Scrap Value: $' + inp.scrapValue + 'M', c1, y1); y1 += 12;
+
+                pdf.setFontSize(12); pdf.setFont(undefined, 'bold'); pdf.setTextColor(61,89,161);
+                pdf.text('FINANCING', c1, y1); y1 += 10;
+                pdf.setFontSize(10); pdf.setFont(undefined, 'normal'); pdf.setTextColor(50,50,50);
+                pdf.text('Base Price: $' + inp.basePurchase + 'M', c1, y1); y1 += lh;
+                pdf.text('Price Range: $' + inp.priceMin + 'M - $' + inp.priceMax + 'M', c1, y1); y1 += lh;
+                pdf.text('Equity: ' + inp.equityPct + '%', c1, y1); y1 += lh;
+                pdf.text('Debt: ' + (100 - inp.equityPct) + '%', c1, y1); y1 += lh;
+                pdf.text('Interest Rate: ' + inp.interestRate + '% p.a.', c1, y1); y1 += lh;
+                pdf.text('Loan Term: ' + inp.loanTerm + ' years', c1, y1);
+
+                pdf.setFontSize(12); pdf.setFont(undefined, 'bold'); pdf.setTextColor(61,89,161);
+                pdf.text('OPERATING COSTS', c2, y2); y2 += 10;
+                pdf.setFontSize(10); pdf.setFont(undefined, 'normal'); pdf.setTextColor(50,50,50);
+                pdf.text('OPEX: $' + inp.opex + '/day', c2, y2); y2 += lh;
+                pdf.text('OPEX Days: ' + inp.opexDays + ' days/year', c2, y2); y2 += lh;
+                pdf.text('Earning Days: ' + inp.earningDays + ' days/year', c2, y2); y2 += lh;
+                pdf.text('Off-Hire (DD/SS): ' + inp.offHireDays + ' days', c2, y2); y2 += lh;
+                pdf.text('DD Cost: $' + inp.ddCost + 'M', c2, y2); y2 += lh;
+                pdf.text('SS Cost: $' + inp.ssCost + 'M', c2, y2); y2 += 12;
+
+                pdf.setFontSize(12); pdf.setFont(undefined, 'bold'); pdf.setTextColor(61,89,161);
+                pdf.text('TIME CHARTER RATES', c2, y2); y2 += 10;
+                pdf.setFontSize(10); pdf.setFont(undefined, 'normal'); pdf.setTextColor(50,50,50);
+                pdf.text('TC Range: $' + inp.tcMin + '/day - $' + inp.tcMax + '/day', c2, y2); y2 += lh;
+                pdf.text('Variable Period: Years 1–' + inp.tcInitialYears, c2, y2); y2 += lh;
+                pdf.text('Fixed Rate: $' + inp.tcLaterRate + '/day (after variable period)', c2, y2);
+
+                pdf.save('vessel_irr_sensitivity.pdf');
+            } catch (e) {
+                console.error('PDF Error:', e);
+                alert('PDF Error: ' + e.message);
+            }
         }
+
+        window.onload = calculateIRR;
     </script>
 </body>
 </html>
