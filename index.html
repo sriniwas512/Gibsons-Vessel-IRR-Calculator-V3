@@ -429,7 +429,7 @@
         const IRR_MIN_VALID = -20;  // % — below this is treated as N/A
         const IRR_MAX_VALID =  50;  // % — above this is treated as N/A
 
-        // Tokyo Night canvas colours
+        // Tokyo Night canvas colours (live view)
         const TN = {
             bg:       '#1f2335',
             overlay:  '#24283b',
@@ -439,6 +439,18 @@
             dim:      '#565f89',
             na:       '#1a1b26',   // N/A cell fill
             naText:   '#565f89',
+        };
+
+        // Light theme for PDF / PNG export
+        const EXPORT_THEME = {
+            bg:      '#ffffff',
+            overlay: '#f5f5f5',
+            border:  '#cccccc',
+            text:    '#1a1a2e',
+            muted:   '#444444',
+            dim:     '#888888',
+            na:      '#eeeeee',
+            naText:  '#999999',
         };
 
         let irrData        = null;
@@ -541,20 +553,18 @@
         }
 
         // ── Draw heatmap ──────────────────────────────────────────────────────
-        function drawHeatmap(canvasId, irrMatrix, prices, tcRates) {
-            const canvas = document.getElementById(canvasId);
-            const ctx    = canvas.getContext('2d');
 
-            const canvasWidth  = 1000;
-            const canvasHeight = 700;
-            canvas.width  = canvasWidth;
-            canvas.height = canvasHeight;
+        // Core renderer — works on any 2D context with any theme object.
+        // priceLabels / tcLabels are the global label arrays (set during calculateIRR).
+        function renderHeatmap(ctx, canvasWidth, canvasHeight, irrMatrix, theme) {
+            const nPrices  = irrMatrix[0].length;
+            const nTCRates = irrMatrix.length;
 
             const mL = 100, mR = 150, mT = 60, mB = 100;
             const plotW = canvasWidth  - mL - mR;
             const plotH = canvasHeight - mT - mB;
-            const cw    = plotW / prices.length;
-            const ch    = plotH / tcRates.length;
+            const cw    = plotW / nPrices;
+            const ch    = plotH / nTCRates;
 
             // Compute min/max from valid IRR values only
             let minIRR = Infinity, maxIRR = -Infinity;
@@ -563,25 +573,24 @@
                     if (isValidIRR(v)) { minIRR = Math.min(minIRR, v); maxIRR = Math.max(maxIRR, v); }
                 }
             }
-            // If everything is N/A fall back to 0–1 range to avoid colour scale collapse
             if (!isFinite(minIRR)) { minIRR = 0; maxIRR = 1; }
 
             // Background
-            ctx.fillStyle = TN.bg;
+            ctx.fillStyle = theme.bg;
             ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
             // Cells
-            for (let i = 0; i < tcRates.length; i++) {
-                for (let j = 0; j < prices.length; j++) {
+            for (let i = 0; i < nTCRates; i++) {
+                for (let j = 0; j < nPrices; j++) {
                     const x   = mL + j * cw;
-                    const y   = mT + (tcRates.length - 1 - i) * ch;
+                    const y   = mT + (nTCRates - 1 - i) * ch;
                     const irr = irrMatrix[i][j];
                     const valid = isValidIRR(irr);
 
-                    ctx.fillStyle = valid ? getColorForIRR(irr, minIRR, maxIRR) : TN.na;
+                    ctx.fillStyle = valid ? getColorForIRR(irr, minIRR, maxIRR) : theme.na;
                     ctx.fillRect(x, y, cw, ch);
 
-                    ctx.strokeStyle = TN.border;
+                    ctx.strokeStyle = theme.border;
                     ctx.lineWidth = 1;
                     ctx.strokeRect(x, y, cw, ch);
 
@@ -592,14 +601,14 @@
                         ctx.fillStyle = irr < 5 ? '#ffffff' : '#1a1b26';
                         ctx.fillText(irr.toFixed(1) + '%', x + cw / 2, y + ch / 2);
                     } else {
-                        ctx.fillStyle = TN.naText;
+                        ctx.fillStyle = theme.naText;
                         ctx.fillText('N/A', x + cw / 2, y + ch / 2);
                     }
                 }
             }
 
             // Axes
-            ctx.strokeStyle = TN.dim;
+            ctx.strokeStyle = theme.dim;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(mL, mT);
@@ -608,10 +617,10 @@
             ctx.stroke();
 
             // X-axis labels (rotated)
-            ctx.fillStyle = TN.muted;
+            ctx.fillStyle = theme.muted;
             ctx.font = '11px Arial';
             ctx.textAlign = 'center';
-            for (let j = 0; j < prices.length; j++) {
+            for (let j = 0; j < nPrices; j++) {
                 const x = mL + j * cw + cw / 2;
                 ctx.save();
                 ctx.translate(x, mT + plotH + 20);
@@ -620,53 +629,61 @@
                 ctx.restore();
             }
             ctx.font = 'bold 13px Arial';
-            ctx.fillStyle = TN.text;
+            ctx.fillStyle = theme.text;
             ctx.fillText('Purchase Price', mL + plotW / 2, canvasHeight - 15);
 
             // Y-axis labels
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
             ctx.font = '11px Arial';
-            ctx.fillStyle = TN.muted;
-            for (let i = 0; i < tcRates.length; i++) {
-                ctx.fillText(tcLabels[i], mL - 10, mT + (tcRates.length - 1 - i) * ch + ch / 2);
+            ctx.fillStyle = theme.muted;
+            for (let i = 0; i < nTCRates; i++) {
+                ctx.fillText(tcLabels[i], mL - 10, mT + (nTCRates - 1 - i) * ch + ch / 2);
             }
             ctx.save();
             ctx.translate(18, mT + plotH / 2);
             ctx.rotate(-Math.PI / 2);
             ctx.font = 'bold 13px Arial';
             ctx.textAlign = 'center';
-            ctx.fillStyle = TN.text;
+            ctx.fillStyle = theme.text;
             ctx.fillText('Time Charter Rate ($/day)', 0, 0);
             ctx.restore();
 
-            // Colour bar (valid range only)
-            drawColorBar(ctx, mL + plotW + 30, mT, 28, plotH, minIRR, maxIRR);
+            // Colour bar
+            drawColorBar(ctx, mL + plotW + 30, mT, 28, plotH, minIRR, maxIRR, theme);
 
             // N/A legend swatch
-            ctx.fillStyle = TN.na;
+            ctx.fillStyle = theme.na;
             ctx.fillRect(mL + plotW + 30, mT + plotH + 10, 28, 14);
-            ctx.strokeStyle = TN.border;
+            ctx.strokeStyle = theme.border;
             ctx.lineWidth = 1;
             ctx.strokeRect(mL + plotW + 30, mT + plotH + 10, 28, 14);
-            ctx.fillStyle = TN.naText;
+            ctx.fillStyle = theme.naText;
             ctx.font = '10px Arial';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
             ctx.fillText('N/A  (<' + IRR_MIN_VALID + '% or >' + IRR_MAX_VALID + '%)', mL + plotW + 62, mT + plotH + 17);
         }
 
-        function drawColorBar(ctx, x, y, w, h, minVal, maxVal) {
+        // Draws to the live DOM canvas using the dark Tokyo Night theme.
+        function drawHeatmap(canvasId, irrMatrix, prices, tcRates) {
+            const canvas = document.getElementById(canvasId);
+            canvas.width  = 1000;
+            canvas.height = 700;
+            renderHeatmap(canvas.getContext('2d'), 1000, 700, irrMatrix, TN);
+        }
+
+        function drawColorBar(ctx, x, y, w, h, minVal, maxVal, theme) {
             for (let i = 0; i < h; i++) {
                 const val = minVal + (maxVal - minVal) * (1 - i / h);
                 ctx.fillStyle = getColorForIRR(val, minVal, maxVal);
                 ctx.fillRect(x, y + i, w, 1);
             }
-            ctx.strokeStyle = TN.border;
+            ctx.strokeStyle = theme.border;
             ctx.lineWidth = 1;
             ctx.strokeRect(x, y, w, h);
 
-            ctx.fillStyle = TN.muted;
+            ctx.fillStyle = theme.muted;
             ctx.font = '11px Arial';
             ctx.textAlign = 'left';
             ctx.fillText(maxVal.toFixed(1) + '%', x + w + 5, y);
@@ -678,7 +695,7 @@
             ctx.rotate(-Math.PI / 2);
             ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
-            ctx.fillStyle = TN.text;
+            ctx.fillStyle = theme.text;
             ctx.fillText('IRR (%)', 0, 0);
             ctx.restore();
         }
@@ -823,8 +840,13 @@
                 pdf.setTextColor(50, 50, 50);
                 pdf.text(inp.chartTitle, 148, 25, { align: 'center' });
 
-                const canvas  = document.getElementById('heatmapCanvas');
-                const imgData = canvas.toDataURL('image/png');
+                // Render an off-screen copy with a white background so the chart
+                // looks clean on the PDF's white page (the live canvas uses Tokyo Night dark).
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width  = 1000;
+                exportCanvas.height = 700;
+                renderHeatmap(exportCanvas.getContext('2d'), 1000, 700, irrData, EXPORT_THEME);
+                const imgData = exportCanvas.toDataURL('image/png');
                 pdf.addImage(imgData, 'PNG', 15, 35, 267, 152);
 
                 pdf.setFontSize(8);
@@ -878,7 +900,8 @@
                 pdf.text('TIME CHARTER RATES', c2, y2); y2 += 10;
                 pdf.setFontSize(10); pdf.setFont(undefined, 'normal'); pdf.setTextColor(50,50,50);
                 pdf.text('TC Range: $' + inp.tcMin + '/day - $' + inp.tcMax + '/day', c2, y2); y2 += lh;
-                pdf.text('Variable Period: Years 1–' + inp.tcInitialYears, c2, y2); y2 += lh;
+                const effectiveVarYears = Math.min(inp.tcInitialYears, inp.scrapAge - inp.vesselAge);
+                pdf.text('Variable Period: Years 1–' + effectiveVarYears, c2, y2); y2 += lh;
                 pdf.text('Fixed Rate: $' + inp.tcLaterRate + '/day (after variable period)', c2, y2);
 
                 pdf.save('vessel_irr_sensitivity.pdf');
