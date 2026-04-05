@@ -429,7 +429,7 @@
         const IRR_MIN_VALID = -20;  // % — below this is treated as N/A
         const IRR_MAX_VALID =  50;  // % — above this is treated as N/A
 
-        // Tokyo Night canvas colours
+        // Tokyo Night canvas colours (live view)
         const TN = {
             bg:       '#1f2335',
             overlay:  '#24283b',
@@ -439,6 +439,18 @@
             dim:      '#565f89',
             na:       '#1a1b26',   // N/A cell fill
             naText:   '#565f89',
+        };
+
+        // Light theme for PDF / PNG export
+        const EXPORT_THEME = {
+            bg:      '#ffffff',
+            overlay: '#f5f5f5',
+            border:  '#cccccc',
+            text:    '#1a1a2e',
+            muted:   '#444444',
+            dim:     '#888888',
+            na:      '#eeeeee',
+            naText:  '#999999',
         };
 
         let irrData        = null;
@@ -486,16 +498,35 @@
 
         function calculateLoanPayment(principal, annualRate, years) {
             const rate = annualRate / 100;
+            if (rate === 0) return principal / years;   // zero-interest: equal principal instalments
             return principal * (rate * Math.pow(1 + rate, years)) / (Math.pow(1 + rate, years) - 1);
+        }
+
+        // Outstanding loan balance after `yearsPaid` payments on a `loanTerm`-year loan.
+        // Used to deduct residual debt from terminal proceeds when selling before loan matures.
+        function outstandingLoanBalance(principal, annualRate, loanTerm, yearsPaid) {
+            if (yearsPaid >= loanTerm || principal === 0) return 0;
+            const rate = annualRate / 100;
+            if (rate === 0) return principal * (loanTerm - yearsPaid) / loanTerm;
+            const payment = calculateLoanPayment(principal, annualRate, loanTerm);
+            return principal * Math.pow(1 + rate, yearsPaid)
+                   - payment * (Math.pow(1 + rate, yearsPaid) - 1) / rate;
         }
 
         // ── Cash flow model ───────────────────────────────────────────────────
         function calculateScenarioIRR(inputs, purchasePrice, tcRate) {
-            const equityInvestment = purchasePrice * (inputs.equityPct / 100);
-            const debtAmount       = purchasePrice * (1 - inputs.equityPct / 100);
+            const equityInvestment  = purchasePrice * (inputs.equityPct / 100);
+            const debtAmount        = purchasePrice * (1 - inputs.equityPct / 100);
             const annualDebtService = calculateLoanPayment(debtAmount, inputs.interestRate, inputs.loanTerm);
-            const holdingPeriod    = inputs.scrapAge - inputs.vesselAge;
-            const cashFlows        = [-equityInvestment];
+            const holdingPeriod     = inputs.scrapAge - inputs.vesselAge;
+
+            // If the loan outlasts the holding period, remaining debt must be repaid at sale
+            // (the equity holder receives scrap proceeds net of outstanding balance).
+            const residualDebt = outstandingLoanBalance(
+                debtAmount, inputs.interestRate, inputs.loanTerm, holdingPeriod
+            );
+
+            const cashFlows = [-equityInvestment];
 
             for (let year = 1; year <= holdingPeriod; year++) {
                 const vesselAge      = inputs.vesselAge + year;
@@ -519,7 +550,7 @@
                 const revenue     = currentTCRate * earningDays;
                 const opex        = inputs.opex * inputs.opexDays;
                 const debtService = year <= inputs.loanTerm ? annualDebtService : 0;
-                const scrap       = year === holdingPeriod ? inputs.scrapValue * 1e6 : 0;
+                const scrap       = year === holdingPeriod ? inputs.scrapValue * 1e6 - residualDebt : 0;
                 cashFlows.push(revenue - opex - capex - debtService + scrap);
             }
 
@@ -541,20 +572,18 @@
         }
 
         // ── Draw heatmap ──────────────────────────────────────────────────────
-        function drawHeatmap(canvasId, irrMatrix, prices, tcRates) {
-            const canvas = document.getElementById(canvasId);
-            const ctx    = canvas.getContext('2d');
 
-            const canvasWidth  = 1000;
-            const canvasHeight = 700;
-            canvas.width  = canvasWidth;
-            canvas.height = canvasHeight;
+        // Core renderer — works on any 2D context with any theme object.
+        // priceLabels / tcLabels are the global label arrays (set during calculateIRR).
+        function renderHeatmap(ctx, canvasWidth, canvasHeight, irrMatrix, theme, title = '') {
+            const nPrices  = irrMatrix[0].length;
+            const nTCRates = irrMatrix.length;
 
             const mL = 100, mR = 150, mT = 60, mB = 100;
             const plotW = canvasWidth  - mL - mR;
             const plotH = canvasHeight - mT - mB;
-            const cw    = plotW / prices.length;
-            const ch    = plotH / tcRates.length;
+            const cw    = plotW / nPrices;
+            const ch    = plotH / nTCRates;
 
             // Compute min/max from valid IRR values only
             let minIRR = Infinity, maxIRR = -Infinity;
@@ -563,25 +592,33 @@
                     if (isValidIRR(v)) { minIRR = Math.min(minIRR, v); maxIRR = Math.max(maxIRR, v); }
                 }
             }
-            // If everything is N/A fall back to 0–1 range to avoid colour scale collapse
             if (!isFinite(minIRR)) { minIRR = 0; maxIRR = 1; }
 
             // Background
-            ctx.fillStyle = TN.bg;
+            ctx.fillStyle = theme.bg;
             ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
+            // Chart title in the top margin
+            if (title) {
+                ctx.font = 'bold 15px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = theme.text;
+                ctx.fillText(title, canvasWidth / 2, mT / 2);
+            }
+
             // Cells
-            for (let i = 0; i < tcRates.length; i++) {
-                for (let j = 0; j < prices.length; j++) {
+            for (let i = 0; i < nTCRates; i++) {
+                for (let j = 0; j < nPrices; j++) {
                     const x   = mL + j * cw;
-                    const y   = mT + (tcRates.length - 1 - i) * ch;
+                    const y   = mT + (nTCRates - 1 - i) * ch;
                     const irr = irrMatrix[i][j];
                     const valid = isValidIRR(irr);
 
-                    ctx.fillStyle = valid ? getColorForIRR(irr, minIRR, maxIRR) : TN.na;
+                    ctx.fillStyle = valid ? getColorForIRR(irr, minIRR, maxIRR) : theme.na;
                     ctx.fillRect(x, y, cw, ch);
 
-                    ctx.strokeStyle = TN.border;
+                    ctx.strokeStyle = theme.border;
                     ctx.lineWidth = 1;
                     ctx.strokeRect(x, y, cw, ch);
 
@@ -592,14 +629,14 @@
                         ctx.fillStyle = irr < 5 ? '#ffffff' : '#1a1b26';
                         ctx.fillText(irr.toFixed(1) + '%', x + cw / 2, y + ch / 2);
                     } else {
-                        ctx.fillStyle = TN.naText;
+                        ctx.fillStyle = theme.naText;
                         ctx.fillText('N/A', x + cw / 2, y + ch / 2);
                     }
                 }
             }
 
             // Axes
-            ctx.strokeStyle = TN.dim;
+            ctx.strokeStyle = theme.dim;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(mL, mT);
@@ -608,10 +645,10 @@
             ctx.stroke();
 
             // X-axis labels (rotated)
-            ctx.fillStyle = TN.muted;
+            ctx.fillStyle = theme.muted;
             ctx.font = '11px Arial';
             ctx.textAlign = 'center';
-            for (let j = 0; j < prices.length; j++) {
+            for (let j = 0; j < nPrices; j++) {
                 const x = mL + j * cw + cw / 2;
                 ctx.save();
                 ctx.translate(x, mT + plotH + 20);
@@ -620,53 +657,61 @@
                 ctx.restore();
             }
             ctx.font = 'bold 13px Arial';
-            ctx.fillStyle = TN.text;
+            ctx.fillStyle = theme.text;
             ctx.fillText('Purchase Price', mL + plotW / 2, canvasHeight - 15);
 
             // Y-axis labels
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
             ctx.font = '11px Arial';
-            ctx.fillStyle = TN.muted;
-            for (let i = 0; i < tcRates.length; i++) {
-                ctx.fillText(tcLabels[i], mL - 10, mT + (tcRates.length - 1 - i) * ch + ch / 2);
+            ctx.fillStyle = theme.muted;
+            for (let i = 0; i < nTCRates; i++) {
+                ctx.fillText(tcLabels[i], mL - 10, mT + (nTCRates - 1 - i) * ch + ch / 2);
             }
             ctx.save();
             ctx.translate(18, mT + plotH / 2);
             ctx.rotate(-Math.PI / 2);
             ctx.font = 'bold 13px Arial';
             ctx.textAlign = 'center';
-            ctx.fillStyle = TN.text;
+            ctx.fillStyle = theme.text;
             ctx.fillText('Time Charter Rate ($/day)', 0, 0);
             ctx.restore();
 
-            // Colour bar (valid range only)
-            drawColorBar(ctx, mL + plotW + 30, mT, 28, plotH, minIRR, maxIRR);
+            // Colour bar
+            drawColorBar(ctx, mL + plotW + 30, mT, 28, plotH, minIRR, maxIRR, theme);
 
             // N/A legend swatch
-            ctx.fillStyle = TN.na;
+            ctx.fillStyle = theme.na;
             ctx.fillRect(mL + plotW + 30, mT + plotH + 10, 28, 14);
-            ctx.strokeStyle = TN.border;
+            ctx.strokeStyle = theme.border;
             ctx.lineWidth = 1;
             ctx.strokeRect(mL + plotW + 30, mT + plotH + 10, 28, 14);
-            ctx.fillStyle = TN.naText;
+            ctx.fillStyle = theme.naText;
             ctx.font = '10px Arial';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
             ctx.fillText('N/A  (<' + IRR_MIN_VALID + '% or >' + IRR_MAX_VALID + '%)', mL + plotW + 62, mT + plotH + 17);
         }
 
-        function drawColorBar(ctx, x, y, w, h, minVal, maxVal) {
+        // Draws to the live DOM canvas using the dark Tokyo Night theme.
+        function drawHeatmap(canvasId, irrMatrix, prices, tcRates, title = '') {
+            const canvas = document.getElementById(canvasId);
+            canvas.width  = 1000;
+            canvas.height = 700;
+            renderHeatmap(canvas.getContext('2d'), 1000, 700, irrMatrix, TN, title);
+        }
+
+        function drawColorBar(ctx, x, y, w, h, minVal, maxVal, theme) {
             for (let i = 0; i < h; i++) {
                 const val = minVal + (maxVal - minVal) * (1 - i / h);
                 ctx.fillStyle = getColorForIRR(val, minVal, maxVal);
                 ctx.fillRect(x, y + i, w, 1);
             }
-            ctx.strokeStyle = TN.border;
+            ctx.strokeStyle = theme.border;
             ctx.lineWidth = 1;
             ctx.strokeRect(x, y, w, h);
 
-            ctx.fillStyle = TN.muted;
+            ctx.fillStyle = theme.muted;
             ctx.font = '11px Arial';
             ctx.textAlign = 'left';
             ctx.fillText(maxVal.toFixed(1) + '%', x + w + 5, y);
@@ -678,7 +723,7 @@
             ctx.rotate(-Math.PI / 2);
             ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
-            ctx.fillStyle = TN.text;
+            ctx.fillStyle = theme.text;
             ctx.fillText('IRR (%)', 0, 0);
             ctx.restore();
         }
@@ -747,6 +792,24 @@
                 tcLaterRate:    parseFloat(document.getElementById('tcLaterRate').value)
             };
 
+            // ── Input validation ──────────────────────────────────────────────
+            const errors = [];
+            if (Object.values(inputs).some(v => typeof v === 'number' && isNaN(v)))
+                errors.push('One or more fields contain invalid (non-numeric) values.');
+            if (inputs.vesselAge >= inputs.scrapAge)
+                errors.push('Current age must be less than scrapping age.');
+            if (inputs.priceMin > inputs.priceMax)
+                errors.push('Min purchase price cannot exceed max purchase price.');
+            if (inputs.tcMin > inputs.tcMax)
+                errors.push('Min TC rate cannot exceed max TC rate.');
+            if (inputs.loanTerm < 1)
+                errors.push('Loan term must be at least 1 year.');
+            if (inputs.equityPct < 0 || inputs.equityPct > 100)
+                errors.push('Equity % must be between 0 and 100.');
+            if (inputs.basePurchase < inputs.priceMin || inputs.basePurchase > inputs.priceMax)
+                errors.push('Base purchase price must be within the min–max price range.');
+            if (errors.length) { alert('Please fix the following:\n\n• ' + errors.join('\n• ')); return; }
+
             currentInputs = inputs;
 
             const prices  = [];
@@ -790,7 +853,7 @@
 
             document.getElementById('chartTitleDisplay').textContent = inputs.chartTitle;
 
-            drawHeatmap('heatmapCanvas', irrMatrix, prices, tcRates);
+            drawHeatmap('heatmapCanvas', irrMatrix, prices, tcRates, inputs.chartTitle);
             setupHoverEffect();
         }
 
@@ -815,21 +878,22 @@
                 const inp = currentInputs;
 
                 // PAGE 1 — CHART
+                // Title is embedded in the canvas (top margin), so we just need the header.
                 pdf.setFontSize(18);
                 pdf.setTextColor(61, 89, 161);
                 pdf.text('Gibson Shipbrokers', 148, 15, { align: 'center' });
 
-                pdf.setFontSize(14);
-                pdf.setTextColor(50, 50, 50);
-                pdf.text(inp.chartTitle, 148, 25, { align: 'center' });
-
-                const canvas  = document.getElementById('heatmapCanvas');
-                const imgData = canvas.toDataURL('image/png');
-                pdf.addImage(imgData, 'PNG', 15, 35, 267, 152);
+                // Render an off-screen copy with white background + title embedded in canvas.
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width  = 1000;
+                exportCanvas.height = 700;
+                renderHeatmap(exportCanvas.getContext('2d'), 1000, 700, irrData, EXPORT_THEME, inp.chartTitle);
+                const imgData = exportCanvas.toDataURL('image/png');
+                pdf.addImage(imgData, 'PNG', 15, 22, 267, 160);
 
                 pdf.setFontSize(8);
                 pdf.setTextColor(150);
-                pdf.text('IRR values outside the range ' + IRR_MIN_VALID + '% – ' + IRR_MAX_VALID + '% are displayed as N/A.', 148, 192, { align: 'center' });
+                pdf.text('IRR values outside the range ' + IRR_MIN_VALID + '% – ' + IRR_MAX_VALID + '% are displayed as N/A.', 148, 186, { align: 'center' });
 
                 // PAGE 2 — ASSUMPTIONS
                 pdf.addPage();
@@ -878,8 +942,15 @@
                 pdf.text('TIME CHARTER RATES', c2, y2); y2 += 10;
                 pdf.setFontSize(10); pdf.setFont(undefined, 'normal'); pdf.setTextColor(50,50,50);
                 pdf.text('TC Range: $' + inp.tcMin + '/day - $' + inp.tcMax + '/day', c2, y2); y2 += lh;
-                pdf.text('Variable Period: Years 1–' + inp.tcInitialYears, c2, y2); y2 += lh;
-                pdf.text('Fixed Rate: $' + inp.tcLaterRate + '/day (after variable period)', c2, y2);
+                const holdingPeriodPDF  = inp.scrapAge - inp.vesselAge;
+                const effectiveVarYears = Math.min(inp.tcInitialYears, holdingPeriodPDF);
+                const fixedRateApplies  = inp.tcInitialYears < holdingPeriodPDF;
+                if (fixedRateApplies) {
+                    pdf.text('Variable Period: Years 1–' + effectiveVarYears, c2, y2); y2 += lh;
+                    pdf.text('Fixed Rate: $' + inp.tcLaterRate + '/day (years ' + (effectiveVarYears + 1) + '–' + holdingPeriodPDF + ')', c2, y2);
+                } else {
+                    pdf.text('Variable Period: All ' + holdingPeriodPDF + ' years (fixed rate not used)', c2, y2);
+                }
 
                 pdf.save('vessel_irr_sensitivity.pdf');
             } catch (e) {
