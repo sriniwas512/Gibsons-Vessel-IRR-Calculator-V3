@@ -888,8 +888,10 @@
                 exportCanvas.width  = 1000;
                 exportCanvas.height = 700;
                 renderHeatmap(exportCanvas.getContext('2d'), 1000, 700, irrData, EXPORT_THEME, inp.chartTitle);
-                const imgData = exportCanvas.toDataURL('image/png');
-                pdf.addImage(imgData, 'PNG', 15, 22, 267, 160);
+                // Use JPEG instead of PNG — eliminates alpha-channel transparency issues
+                // that cause some jsPDF builds to render the image with a black background.
+                const imgData = exportCanvas.toDataURL('image/jpeg', 1.0);
+                pdf.addImage(imgData, 'JPEG', 15, 22, 267, 160);
 
                 pdf.setFontSize(8);
                 pdf.setTextColor(150);
