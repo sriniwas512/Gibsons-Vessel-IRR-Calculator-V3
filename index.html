@@ -498,16 +498,35 @@
 
         function calculateLoanPayment(principal, annualRate, years) {
             const rate = annualRate / 100;
+            if (rate === 0) return principal / years;   // zero-interest: equal principal instalments
             return principal * (rate * Math.pow(1 + rate, years)) / (Math.pow(1 + rate, years) - 1);
+        }
+
+        // Outstanding loan balance after `yearsPaid` payments on a `loanTerm`-year loan.
+        // Used to deduct residual debt from terminal proceeds when selling before loan matures.
+        function outstandingLoanBalance(principal, annualRate, loanTerm, yearsPaid) {
+            if (yearsPaid >= loanTerm || principal === 0) return 0;
+            const rate = annualRate / 100;
+            if (rate === 0) return principal * (loanTerm - yearsPaid) / loanTerm;
+            const payment = calculateLoanPayment(principal, annualRate, loanTerm);
+            return principal * Math.pow(1 + rate, yearsPaid)
+                   - payment * (Math.pow(1 + rate, yearsPaid) - 1) / rate;
         }
 
         // ── Cash flow model ───────────────────────────────────────────────────
         function calculateScenarioIRR(inputs, purchasePrice, tcRate) {
-            const equityInvestment = purchasePrice * (inputs.equityPct / 100);
-            const debtAmount       = purchasePrice * (1 - inputs.equityPct / 100);
+            const equityInvestment  = purchasePrice * (inputs.equityPct / 100);
+            const debtAmount        = purchasePrice * (1 - inputs.equityPct / 100);
             const annualDebtService = calculateLoanPayment(debtAmount, inputs.interestRate, inputs.loanTerm);
-            const holdingPeriod    = inputs.scrapAge - inputs.vesselAge;
-            const cashFlows        = [-equityInvestment];
+            const holdingPeriod     = inputs.scrapAge - inputs.vesselAge;
+
+            // If the loan outlasts the holding period, remaining debt must be repaid at sale
+            // (the equity holder receives scrap proceeds net of outstanding balance).
+            const residualDebt = outstandingLoanBalance(
+                debtAmount, inputs.interestRate, inputs.loanTerm, holdingPeriod
+            );
+
+            const cashFlows = [-equityInvestment];
 
             for (let year = 1; year <= holdingPeriod; year++) {
                 const vesselAge      = inputs.vesselAge + year;
@@ -531,7 +550,7 @@
                 const revenue     = currentTCRate * earningDays;
                 const opex        = inputs.opex * inputs.opexDays;
                 const debtService = year <= inputs.loanTerm ? annualDebtService : 0;
-                const scrap       = year === holdingPeriod ? inputs.scrapValue * 1e6 : 0;
+                const scrap       = year === holdingPeriod ? inputs.scrapValue * 1e6 - residualDebt : 0;
                 cashFlows.push(revenue - opex - capex - debtService + scrap);
             }
 
@@ -556,7 +575,7 @@
 
         // Core renderer — works on any 2D context with any theme object.
         // priceLabels / tcLabels are the global label arrays (set during calculateIRR).
-        function renderHeatmap(ctx, canvasWidth, canvasHeight, irrMatrix, theme) {
+        function renderHeatmap(ctx, canvasWidth, canvasHeight, irrMatrix, theme, title = '') {
             const nPrices  = irrMatrix[0].length;
             const nTCRates = irrMatrix.length;
 
@@ -578,6 +597,15 @@
             // Background
             ctx.fillStyle = theme.bg;
             ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            // Chart title in the top margin
+            if (title) {
+                ctx.font = 'bold 15px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = theme.text;
+                ctx.fillText(title, canvasWidth / 2, mT / 2);
+            }
 
             // Cells
             for (let i = 0; i < nTCRates; i++) {
@@ -666,11 +694,11 @@
         }
 
         // Draws to the live DOM canvas using the dark Tokyo Night theme.
-        function drawHeatmap(canvasId, irrMatrix, prices, tcRates) {
+        function drawHeatmap(canvasId, irrMatrix, prices, tcRates, title = '') {
             const canvas = document.getElementById(canvasId);
             canvas.width  = 1000;
             canvas.height = 700;
-            renderHeatmap(canvas.getContext('2d'), 1000, 700, irrMatrix, TN);
+            renderHeatmap(canvas.getContext('2d'), 1000, 700, irrMatrix, TN, title);
         }
 
         function drawColorBar(ctx, x, y, w, h, minVal, maxVal, theme) {
@@ -764,6 +792,24 @@
                 tcLaterRate:    parseFloat(document.getElementById('tcLaterRate').value)
             };
 
+            // ── Input validation ──────────────────────────────────────────────
+            const errors = [];
+            if (Object.values(inputs).some(v => typeof v === 'number' && isNaN(v)))
+                errors.push('One or more fields contain invalid (non-numeric) values.');
+            if (inputs.vesselAge >= inputs.scrapAge)
+                errors.push('Current age must be less than scrapping age.');
+            if (inputs.priceMin > inputs.priceMax)
+                errors.push('Min purchase price cannot exceed max purchase price.');
+            if (inputs.tcMin > inputs.tcMax)
+                errors.push('Min TC rate cannot exceed max TC rate.');
+            if (inputs.loanTerm < 1)
+                errors.push('Loan term must be at least 1 year.');
+            if (inputs.equityPct < 0 || inputs.equityPct > 100)
+                errors.push('Equity % must be between 0 and 100.');
+            if (inputs.basePurchase < inputs.priceMin || inputs.basePurchase > inputs.priceMax)
+                errors.push('Base purchase price must be within the min–max price range.');
+            if (errors.length) { alert('Please fix the following:\n\n• ' + errors.join('\n• ')); return; }
+
             currentInputs = inputs;
 
             const prices  = [];
@@ -807,7 +853,7 @@
 
             document.getElementById('chartTitleDisplay').textContent = inputs.chartTitle;
 
-            drawHeatmap('heatmapCanvas', irrMatrix, prices, tcRates);
+            drawHeatmap('heatmapCanvas', irrMatrix, prices, tcRates, inputs.chartTitle);
             setupHoverEffect();
         }
 
@@ -832,26 +878,22 @@
                 const inp = currentInputs;
 
                 // PAGE 1 — CHART
+                // Title is embedded in the canvas (top margin), so we just need the header.
                 pdf.setFontSize(18);
                 pdf.setTextColor(61, 89, 161);
                 pdf.text('Gibson Shipbrokers', 148, 15, { align: 'center' });
 
-                pdf.setFontSize(14);
-                pdf.setTextColor(50, 50, 50);
-                pdf.text(inp.chartTitle, 148, 25, { align: 'center' });
-
-                // Render an off-screen copy with a white background so the chart
-                // looks clean on the PDF's white page (the live canvas uses Tokyo Night dark).
+                // Render an off-screen copy with white background + title embedded in canvas.
                 const exportCanvas = document.createElement('canvas');
                 exportCanvas.width  = 1000;
                 exportCanvas.height = 700;
-                renderHeatmap(exportCanvas.getContext('2d'), 1000, 700, irrData, EXPORT_THEME);
+                renderHeatmap(exportCanvas.getContext('2d'), 1000, 700, irrData, EXPORT_THEME, inp.chartTitle);
                 const imgData = exportCanvas.toDataURL('image/png');
-                pdf.addImage(imgData, 'PNG', 15, 35, 267, 152);
+                pdf.addImage(imgData, 'PNG', 15, 22, 267, 160);
 
                 pdf.setFontSize(8);
                 pdf.setTextColor(150);
-                pdf.text('IRR values outside the range ' + IRR_MIN_VALID + '% – ' + IRR_MAX_VALID + '% are displayed as N/A.', 148, 192, { align: 'center' });
+                pdf.text('IRR values outside the range ' + IRR_MIN_VALID + '% – ' + IRR_MAX_VALID + '% are displayed as N/A.', 148, 186, { align: 'center' });
 
                 // PAGE 2 — ASSUMPTIONS
                 pdf.addPage();
@@ -900,9 +942,15 @@
                 pdf.text('TIME CHARTER RATES', c2, y2); y2 += 10;
                 pdf.setFontSize(10); pdf.setFont(undefined, 'normal'); pdf.setTextColor(50,50,50);
                 pdf.text('TC Range: $' + inp.tcMin + '/day - $' + inp.tcMax + '/day', c2, y2); y2 += lh;
-                const effectiveVarYears = Math.min(inp.tcInitialYears, inp.scrapAge - inp.vesselAge);
-                pdf.text('Variable Period: Years 1–' + effectiveVarYears, c2, y2); y2 += lh;
-                pdf.text('Fixed Rate: $' + inp.tcLaterRate + '/day (after variable period)', c2, y2);
+                const holdingPeriodPDF  = inp.scrapAge - inp.vesselAge;
+                const effectiveVarYears = Math.min(inp.tcInitialYears, holdingPeriodPDF);
+                const fixedRateApplies  = inp.tcInitialYears < holdingPeriodPDF;
+                if (fixedRateApplies) {
+                    pdf.text('Variable Period: Years 1–' + effectiveVarYears, c2, y2); y2 += lh;
+                    pdf.text('Fixed Rate: $' + inp.tcLaterRate + '/day (years ' + (effectiveVarYears + 1) + '–' + holdingPeriodPDF + ')', c2, y2);
+                } else {
+                    pdf.text('Variable Period: All ' + holdingPeriodPDF + ' years (fixed rate not used)', c2, y2);
+                }
 
                 pdf.save('vessel_irr_sensitivity.pdf');
             } catch (e) {
