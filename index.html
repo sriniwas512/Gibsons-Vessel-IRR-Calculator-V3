@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vessel IRR Sensitivity Calculator</title>
+    <title>Vessel IRR Sensitivity Calculator V3</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%231f2335'/><text y='72' x='50' text-anchor='middle' font-size='62'>⚓</text></svg>">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
@@ -393,17 +393,52 @@
         .tag.fix    { background: #2d2a45; color: #bb9af7; }
         .tag.new    { background: #1e3a2f; color: #9ece6a; }
         .tag.ui     { background: #1e2d3d; color: #7dcfff; }
+
+        /* ── Share toast ─────────────────────────────────────────────────────── */
+        .share-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #e0af68 0%, #c89b3c 100%);
+            color: #1a1b26;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-family: inherit;
+        }
+        .share-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(224, 175, 104, 0.35);
+        }
+        .share-toast {
+            display: none;
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #9ece6a;
+            color: #1a1b26;
+            font-weight: 700;
+            padding: 10px 24px;
+            border-radius: 24px;
+            font-size: 0.95em;
+            z-index: 3000;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div class="gibson-branding-top">GIBSON SHIPBROKERS</div>
-            <h1>⚓ Vessel IRR Sensitivity Calculator</h1>
+            <h1>⚓ Vessel IRR Sensitivity Calculator V3</h1>
             <p>Interactive tool for analyzing levered equity returns on vessel investments</p>
             <div class="creator-credit">Created by Sriniwas Ghate, S&P Department</div>
             <button class="whats-new-btn" onclick="openChangelog()">
-                What's new? <span class="whats-new-badge">5</span>
+                What's new? <span class="whats-new-badge">6</span>
             </button>
         </div>
 
@@ -436,6 +471,10 @@
                         <li>
                             <span class="tag fix">Fix</span>
                             <span><strong>Earning days guard.</strong> Off-hire days during DD/SS can no longer push earning days below zero, which previously produced negative revenue and distorted IRR results.</span>
+                        </li>
+                        <li>
+                            <span class="tag new">New</span>
+                            <span><strong>Share link.</strong> Use the <em>Copy Share Link</em> button to generate a URL that encodes all your current inputs. Send it to a counterparty and they'll open the calculator with every field pre-filled exactly as you left it.</span>
                         </li>
                     </ul>
                 </div>
@@ -559,6 +598,9 @@
                     <button class="download-btn" onclick="downloadPNG()" style="background: linear-gradient(135deg, #bb9af7 0%, #9d7cd8 100%);">
                         📸 Download Chart as PNG
                     </button>
+                    <button class="share-btn" onclick="shareLink()">
+                        🔗 Copy Share Link
+                    </button>
                 </div>
             </div>
 
@@ -589,6 +631,7 @@
             </div>
         </div>
     </div>
+    <div class="share-toast" id="shareToast">🔗 Link copied to clipboard!</div>
 
     <script>
         // ── Constants ─────────────────────────────────────────────────────────
@@ -1130,6 +1173,58 @@
             }
         }
 
+        // ── Share link ────────────────────────────────────────────────────────
+        // Map: input element id → URL param key (short names to keep URLs tidy)
+        const SHARE_PARAMS = [
+            ['chartTitle',     'title'],
+            ['vesselAge',      'va'],
+            ['scrapAge',       'sa'],
+            ['scrapValue',     'sv'],
+            ['basePurchase',   'bp'],
+            ['priceMin',       'pmin'],
+            ['priceMax',       'pmax'],
+            ['equityPct',      'eq'],
+            ['interestRate',   'ir'],
+            ['loanTerm',       'lt'],
+            ['opex',           'opex'],
+            ['opexDays',       'od'],
+            ['earningDays',    'ed'],
+            ['offHireDays',    'ohd'],
+            ['ddCost',         'dd'],
+            ['ssCost',         'ss'],
+            ['tcMin',          'tcmin'],
+            ['tcMax',          'tcmax'],
+            ['tcInitialYears', 'tcy'],
+            ['tcLaterRate',    'tclr'],
+        ];
+
+        function shareLink() {
+            const params = new URLSearchParams();
+            SHARE_PARAMS.forEach(([id, key]) => {
+                const el = document.getElementById(id);
+                if (el) params.set(key, el.value);
+            });
+            const url = `${location.origin}${location.pathname}?${params.toString()}`;
+            navigator.clipboard.writeText(url).then(() => {
+                const toast = document.getElementById('shareToast');
+                toast.style.display = 'block';
+                setTimeout(() => { toast.style.display = 'none'; }, 2500);
+            }).catch(() => {
+                prompt('Copy this link:', url);
+            });
+        }
+
+        function loadFromURL() {
+            const params = new URLSearchParams(location.search);
+            if (!params.size) return;
+            SHARE_PARAMS.forEach(([id, key]) => {
+                if (params.has(key)) {
+                    const el = document.getElementById(id);
+                    if (el) el.value = params.get(key);
+                }
+            });
+        }
+
         // ── Survey age hints ─────────────────────────────────────────────────
         function updateSurveyHints() {
             const vesselAge = parseFloat(document.getElementById('vesselAge').value);
@@ -1169,7 +1264,7 @@
         }
         document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChangelog(); });
 
-        window.onload = () => { calculateIRR(); updateSurveyHints(); };
+        window.onload = () => { loadFromURL(); calculateIRR(); updateSurveyHints(); };
     </script>
 </body>
 </html>
