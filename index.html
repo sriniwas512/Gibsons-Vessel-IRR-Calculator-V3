@@ -267,6 +267,131 @@
             .content { grid-template-columns: 1fr; }
             .inputs-panel { max-height: none; border-right: none; border-bottom: 2px solid #292e42; }
         }
+
+        /* ── What's New button & modal ───────────────────────────────────────── */
+        .whats-new-btn {
+            position: absolute;
+            top: 18px;
+            right: 20px;
+            background: linear-gradient(135deg, #bb9af7 0%, #9d7cd8 100%);
+            color: #1a1b26;
+            border: none;
+            border-radius: 20px;
+            padding: 7px 16px;
+            font-size: 0.82em;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            z-index: 10;
+        }
+        .whats-new-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(187, 154, 247, 0.45);
+        }
+        .whats-new-badge {
+            display: inline-block;
+            background: #f7768e;
+            color: #fff;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            font-size: 0.7em;
+            line-height: 16px;
+            text-align: center;
+            margin-left: 5px;
+            font-weight: 800;
+            vertical-align: middle;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 20, 0.75);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+
+        .modal {
+            background: #1f2335;
+            border: 1px solid #3d59a1;
+            border-radius: 14px;
+            width: min(680px, 92vw);
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 32px 36px;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 14px;
+            right: 18px;
+            background: none;
+            border: none;
+            color: #565f89;
+            font-size: 1.4em;
+            cursor: pointer;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+        .modal-close:hover { color: #f7768e; }
+
+        .modal h2 {
+            color: #7aa2f7;
+            font-size: 1.3em;
+            margin-bottom: 6px;
+        }
+        .modal .modal-subtitle {
+            color: #565f89;
+            font-size: 0.82em;
+            margin-bottom: 24px;
+        }
+
+        .changelog-version {
+            margin-bottom: 24px;
+        }
+        .changelog-version h3 {
+            color: #bb9af7;
+            font-size: 0.95em;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #292e42;
+        }
+        .changelog-version ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .changelog-version ul li {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            padding: 6px 0;
+            font-size: 0.88em;
+            color: #a9b1d6;
+            line-height: 1.5;
+        }
+        .tag {
+            flex-shrink: 0;
+            font-size: 0.72em;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 1px;
+        }
+        .tag.fix    { background: #2d2a45; color: #bb9af7; }
+        .tag.new    { background: #1e3a2f; color: #9ece6a; }
+        .tag.ui     { background: #1e2d3d; color: #7dcfff; }
+        .tag.calc   { background: #3d2a1e; color: #ff9e64; }
     </style>
 </head>
 <body>
@@ -276,6 +401,56 @@
             <h1>⚓ Vessel IRR Sensitivity Calculator</h1>
             <p>Interactive tool for analyzing levered equity returns on vessel investments</p>
             <div class="creator-credit">Created by Sriniwas Ghate, S&P Department</div>
+            <button class="whats-new-btn" onclick="openChangelog()">
+                What's new? <span class="whats-new-badge">6</span>
+            </button>
+        </div>
+
+        <!-- What's New modal -->
+        <div class="modal-overlay" id="changelogOverlay" onclick="closeChangelogOutside(event)">
+            <div class="modal" id="changelogModal">
+                <button class="modal-close" onclick="closeChangelog()" title="Close">&times;</button>
+                <h2>What's New</h2>
+                <p class="modal-subtitle">Vessel IRR Sensitivity Calculator &mdash; recent updates</p>
+
+                <div class="changelog-version">
+                    <h3>Latest Release &mdash; April 2026</h3>
+                    <ul>
+                        <li>
+                            <span class="tag calc">Calc</span>
+                            <span><strong>Residual loan balance on exit.</strong> When the loan term exceeds the holding period, the outstanding debt is now correctly deducted from terminal sale proceeds. Previously equity IRR was overstated in these scenarios.</span>
+                        </li>
+                        <li>
+                            <span class="tag fix">Fix</span>
+                            <span><strong>Edge-case IRR now shows N/A.</strong> The solver previously returned a random unconverged number after 1,000 iterations. Non-convergent cells (e.g. all-positive cash flows) now correctly display <em>N/A</em> on the heatmap.</span>
+                        </li>
+                        <li>
+                            <span class="tag calc">Calc</span>
+                            <span><strong>Survey timing reworked.</strong> Special Surveys now fire at absolute vessel ages 5, 10, 15, 20, 25 &hellip; and Drydockings at the midpoint ages 7.5, 12.5, 17.5, 22.5 &hellip; — both tied to the vessel's actual age, not the holding-period year.</span>
+                        </li>
+                        <li>
+                            <span class="tag fix">Fix</span>
+                            <span><strong>Zero interest-rate crash fixed.</strong> Entering 0% interest rate previously produced NaN across the entire grid. Loan payments at 0% now calculate correctly as equal principal instalments.</span>
+                        </li>
+                        <li>
+                            <span class="tag new">New</span>
+                            <span><strong>Input validation.</strong> The calculator now checks for invalid inputs (vessel age &ge; scrap age, flipped price/TC ranges, out-of-range equity %, blank fields, base price outside the grid) and shows a clear error before calculating.</span>
+                        </li>
+                        <li>
+                            <span class="tag ui">UI</span>
+                            <span><strong>Tokyo Night theme.</strong> The interface and heatmap canvas have been restyled with the Tokyo Night colour palette for a cleaner, high-contrast look.</span>
+                        </li>
+                        <li>
+                            <span class="tag ui">UI</span>
+                            <span><strong>PDF &amp; PNG export improvements.</strong> PDF report now renders on a white background (no more dark canvas in print). Chart title is embedded directly in the canvas image so it appears in PNG exports too. Variable period and fixed-rate assumptions in the PDF now reflect what was actually modelled.</span>
+                        </li>
+                        <li>
+                            <span class="tag fix">Fix</span>
+                            <span><strong>Earning days guard.</strong> Off-hire days during DD/SS can no longer push earning days below zero, which previously produced negative revenue and distorted IRR results.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
         </div>
 
         <div class="content">
@@ -960,6 +1135,18 @@
                 alert('PDF Error: ' + e.message);
             }
         }
+
+        // ── What's New modal ──────────────────────────────────────────────────
+        function openChangelog() {
+            document.getElementById('changelogOverlay').classList.add('open');
+        }
+        function closeChangelog() {
+            document.getElementById('changelogOverlay').classList.remove('open');
+        }
+        function closeChangelogOutside(e) {
+            if (e.target === document.getElementById('changelogOverlay')) closeChangelog();
+        }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChangelog(); });
 
         window.onload = calculateIRR;
     </script>
