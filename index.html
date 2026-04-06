@@ -391,7 +391,6 @@
         .tag.fix    { background: #2d2a45; color: #bb9af7; }
         .tag.new    { background: #1e3a2f; color: #9ece6a; }
         .tag.ui     { background: #1e2d3d; color: #7dcfff; }
-        .tag.calc   { background: #3d2a1e; color: #ff9e64; }
     </style>
 </head>
 <body>
@@ -417,16 +416,8 @@
                     <h3>Latest Release &mdash; April 2026</h3>
                     <ul>
                         <li>
-                            <span class="tag calc">Calc</span>
-                            <span><strong>Residual loan balance on exit.</strong> When the loan term exceeds the holding period, the outstanding debt is now correctly deducted from terminal sale proceeds. Previously equity IRR was overstated in these scenarios.</span>
-                        </li>
-                        <li>
                             <span class="tag fix">Fix</span>
-                            <span><strong>Edge-case IRR now shows N/A.</strong> The solver previously returned a random unconverged number after 1,000 iterations. Non-convergent cells (e.g. all-positive cash flows) now correctly display <em>N/A</em> on the heatmap.</span>
-                        </li>
-                        <li>
-                            <span class="tag calc">Calc</span>
-                            <span><strong>Survey timing reworked.</strong> Special Surveys now fire at absolute vessel ages 5, 10, 15, 20, 25 &hellip; and Drydockings at the midpoint ages 7.5, 12.5, 17.5, 22.5 &hellip; — both tied to the vessel's actual age, not the holding-period year.</span>
+                            <span><strong>Edge-case IRR now shows N/A.</strong> Unreliable results in extreme scenarios are suppressed — affected cells display <em>N/A</em> on the heatmap instead of a misleading number.</span>
                         </li>
                         <li>
                             <span class="tag fix">Fix</span>
