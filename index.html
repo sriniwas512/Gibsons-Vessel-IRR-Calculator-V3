@@ -1027,10 +1027,13 @@
         function downloadPNG() {
             if (!irrData || !currentInputs) { alert('Please calculate IRR first!'); return; }
             try {
-                const canvas = document.getElementById('heatmapCanvas');
-                const link   = document.createElement('a');
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width  = 1000;
+                exportCanvas.height = 700;
+                renderHeatmap(exportCanvas.getContext('2d'), 1000, 700, irrData, EXPORT_THEME, currentInputs.chartTitle);
+                const link = document.createElement('a');
                 link.download = `vessel_irr_sensitivity_${new Date().toISOString().split('T')[0]}.png`;
-                link.href     = canvas.toDataURL('image/png');
+                link.href     = exportCanvas.toDataURL('image/png');
                 link.click();
             } catch (e) { alert('Error downloading image: ' + e.message); }
         }
