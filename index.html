@@ -184,7 +184,7 @@
             border-radius: 10px;
             margin-bottom: 20px;
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 15px;
             border: 1px solid #292e42;
         }
@@ -211,6 +211,12 @@
 
         .result-card .value.negative { color: #f7768e; }
         .result-card .value.positive { color: #9ece6a; }
+        .result-card .value.gold     { color: #e0af68; }
+        .result-card .sublabel {
+            color: #565f89;
+            font-size: 0.72em;
+            margin-top: 4px;
+        }
 
         .canvas-container {
             position: relative;
@@ -605,18 +611,23 @@
             </div>
 
             <div class="chart-panel">
-                <div class="results-summary" id="results" style="display: none;">
+                <div class="results-summary" id="results">
                     <div class="result-card">
                         <h4>Base Case IRR</h4>
-                        <div class="value" id="baseIRR">-</div>
+                        <div class="value" id="baseIRR">—</div>
                     </div>
                     <div class="result-card">
                         <h4>Max IRR</h4>
-                        <div class="value positive" id="maxIRR">-</div>
+                        <div class="value positive" id="maxIRR">—</div>
                     </div>
                     <div class="result-card">
                         <h4>Min IRR</h4>
-                        <div class="value negative" id="minIRR">-</div>
+                        <div class="value negative" id="minIRR">—</div>
+                    </div>
+                    <div class="result-card">
+                        <h4>Total Cost / Day</h4>
+                        <div class="value gold" id="costPerDay">—</div>
+                        <div class="sublabel">OPEX + Loan + DD/SS · base price</div>
                     </div>
                 </div>
 
@@ -1054,7 +1065,6 @@
             const baseIRR   = irrMatrix[baseTCIdx][basePriceIdx];
             const baseValid = isValidIRR(baseIRR);
 
-            document.getElementById('results').style.display = 'grid';
             document.getElementById('baseIRR').textContent  = baseValid ? baseIRR.toFixed(2) + '%' : 'N/A';
             document.getElementById('baseIRR').className    = 'value ' + (!baseValid ? '' : baseIRR >= 0 ? 'positive' : 'negative');
             document.getElementById('maxIRR').textContent   = isFinite(maxIRR) ? maxIRR.toFixed(2) + '%' : 'N/A';
@@ -1064,6 +1074,7 @@
 
             drawHeatmap('heatmapCanvas', irrMatrix, prices, tcRates, inputs.chartTitle);
             setupHoverEffect();
+            updateCostPerDay();
         }
 
         // ── PNG download ──────────────────────────────────────────────────────
@@ -1225,6 +1236,65 @@
             });
         }
 
+        // ── Total Cost per Day (live, uses base purchase price) ───────────────
+        function updateCostPerDay() {
+            const vesselAge    = parseFloat(document.getElementById('vesselAge').value);
+            const scrapAge     = parseFloat(document.getElementById('scrapAge').value);
+            const basePurchase = parseFloat(document.getElementById('basePurchase').value) * 1e6;
+            const equityPct    = parseFloat(document.getElementById('equityPct').value);
+            const interestRate = parseFloat(document.getElementById('interestRate').value);
+            const loanTerm     = parseFloat(document.getElementById('loanTerm').value);
+            const opex         = parseFloat(document.getElementById('opex').value);
+            const opexDays     = parseFloat(document.getElementById('opexDays').value);
+            const earningDays  = parseFloat(document.getElementById('earningDays').value);
+            const offHireDays  = parseFloat(document.getElementById('offHireDays').value);
+            const ddCost       = parseFloat(document.getElementById('ddCost').value) * 1e6;
+            const ssCost       = parseFloat(document.getElementById('ssCost').value) * 1e6;
+
+            const el = document.getElementById('costPerDay');
+            const vals = [vesselAge, scrapAge, basePurchase, equityPct, interestRate,
+                          loanTerm, opex, opexDays, earningDays, offHireDays, ddCost, ssCost];
+            if (vals.some(isNaN) || vesselAge >= scrapAge || loanTerm < 1) {
+                el.textContent = '—'; return;
+            }
+
+            const holdingPeriod  = scrapAge - vesselAge;
+            const debtAmount     = basePurchase * (1 - equityPct / 100);
+            const annualPayment  = calculateLoanPayment(debtAmount, interestRate, loanTerm);
+            const residualDebt   = outstandingLoanBalance(debtAmount, interestRate, loanTerm, holdingPeriod);
+
+            // Total loan cost = all scheduled payments made + residual balance repaid at exit
+            // This equals debtAmount (principal) + total interest paid over the hold.
+            const totalLoanCost  = annualPayment * Math.min(loanTerm, holdingPeriod) + residualDebt;
+
+            // OPEX runs 365 days regardless of surveys
+            const totalOPEX      = opex * opexDays * holdingPeriod;
+
+            // DD / SS capex and earning days — mirrors calculateScenarioIRR exactly
+            let totalCapex       = 0;
+            let totalEarningDays = 0;
+            for (let yr = 1; yr <= holdingPeriod; yr++) {
+                const age = vesselAge + yr;
+                let capex = 0, offHire = 0;
+                if (yr !== holdingPeriod) {             // no capex in exit year (model convention)
+                    if (age % 5 === 0)       { capex = ssCost; offHire = offHireDays; }
+                    else if (age % 5 === 3)  { capex = ddCost; offHire = offHireDays; }
+                }
+                totalCapex       += capex;
+                totalEarningDays += Math.max(0, earningDays - offHire);
+            }
+
+            if (totalEarningDays <= 0) { el.textContent = 'N/A'; return; }
+
+            const costPerDay = (totalOPEX + totalCapex + totalLoanCost) / totalEarningDays;
+            el.textContent = '$' + Math.round(costPerDay).toLocaleString() + '/day';
+        }
+
+        // Attach live updates to every input that affects the cost calculation
+        ['vesselAge','scrapAge','basePurchase','equityPct','interestRate','loanTerm',
+         'opex','opexDays','earningDays','offHireDays','ddCost','ssCost'
+        ].forEach(id => document.getElementById(id).addEventListener('input', updateCostPerDay));
+
         // ── Survey age hints ─────────────────────────────────────────────────
         function updateSurveyHints() {
             const vesselAge = parseFloat(document.getElementById('vesselAge').value);
@@ -1264,7 +1334,7 @@
         }
         document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChangelog(); });
 
-        window.onload = () => { loadFromURL(); calculateIRR(); updateSurveyHints(); };
+        window.onload = () => { loadFromURL(); calculateIRR(); updateSurveyHints(); updateCostPerDay(); };
     </script>
 </body>
 </html>
