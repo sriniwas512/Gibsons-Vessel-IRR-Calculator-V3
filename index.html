@@ -758,9 +758,9 @@
                         // Special Survey at ages 5, 10, 15, 20, 25 …
                         capex = inputs.ssCost * 1e6;
                         offHireDays = inputs.offHireDays;
-                    } else if (vesselAge % 5 === 3) {
-                        // Drydocking midpoint ages 2.5, 7.5, 12.5, 17.5, 22.5
-                        // → fires in the integer year when vesselAge is 3, 8, 13, 18, 23 …
+                    } else if (vesselAge % 5 === 3 && vesselAge >= 8) {
+                        // Drydocking at midpoint ages 7.5, 12.5, 17.5, 22.5 …
+                        // → fires at integer ages 8, 13, 18, 23 … (first DD never before age 8)
                         capex = inputs.ddCost * 1e6;
                         offHireDays = inputs.offHireDays;
                     }
@@ -1278,7 +1278,7 @@
                 let capex = 0, offHire = 0;
                 if (yr !== holdingPeriod) {             // no capex in exit year (model convention)
                     if (age % 5 === 0)       { capex = ssCost; offHire = offHireDays; }
-                    else if (age % 5 === 3)  { capex = ddCost; offHire = offHireDays; }
+                    else if (age % 5 === 3 && age >= 8)  { capex = ddCost; offHire = offHireDays; }
                 }
                 totalCapex       += capex;
                 totalEarningDays += Math.max(0, earningDays - offHire);
@@ -1310,11 +1310,11 @@
                 const age = vesselAge + yr;
                 if (yr === scrapAge - vesselAge) continue; // no capex in final year
                 if (age % 5 === 0)      ssAges.push(age);
-                else if (age % 5 === 3) ddAges.push(age);
+                else if (age % 5 === 3 && age >= 8) ddAges.push(age);
             }
 
             document.getElementById('ddCostHint').textContent =
-                ddAges.length ? 'Applied at vessel age: ' + ddAges.join(', ') : 'No drydockings within holding period';
+                ddAges.length ? 'Applied at vessel age: ' + ddAges.join(', ') + ' (first DD from age 8)' : 'No drydockings within holding period (first DD at age 8)';
             document.getElementById('ssCostHint').textContent =
                 ssAges.length ? 'Applied at vessel age: ' + ssAges.join(', ') : 'No special surveys within holding period';
         }
